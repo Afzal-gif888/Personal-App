@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" fill="none">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="agentos-bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B0D14" />
+      <stop offset="50%" stop-color="#0E121E" />
+      <stop offset="100%" stop-color="#07080D" />
+    </linearGradient>
+
+    <!-- Branch A: Academic (Electric Indigo to Violet) -->
+    <linearGradient id="grad-academic" x1="15%" y1="10%" x2="85%" y2="90%">
+      <stop offset="0%" stop-color="#6366F1" />
+      <stop offset="100%" stop-color="#8B5CF6" />
+    </linearGradient>
+
+    <!-- Branch B: Personal Life & Finance (Violet to Neon Pink) -->
+    <linearGradient id="grad-personal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8B5CF6" />
+      <stop offset="100%" stop-color="#EC4899" />
+    </linearGradient>
+
+    <!-- Branch C: Autonomous AI Kernel (Cyan to Electric Indigo) -->
+    <linearGradient id="grad-ai" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#06B6D4" />
+      <stop offset="50%" stop-color="#3B82F6" />
+      <stop offset="100%" stop-color="#6366F1" />
+    </linearGradient>
+
+    <!-- Core Glow Filter -->
+    <filter id="glow-kernel" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feColorMatrix type="matrix" values="0 0 0 0 0.02   0 0 0 0 0.71   0 0 0 0 0.83  0 0 0 0.75 0" />
+      <feMerge>
+        <feMergeNode />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <radialGradient id="kernel-radial" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="45%" stop-color="#67E8F9" />
+      <stop offset="100%" stop-color="#06B6D4" />
+    </radialGradient>
+  </defs>
+
+  <!-- Base Rounded Container / Chassis -->
+  <rect width="64" height="64" rx="16" fill="url(#agentos-bg)" />
+  <rect x="0.75" y="0.75" width="62.5" height="62.5" rx="15.25" stroke="#1F2437" stroke-width="1.5" />
+
+  <!-- Subtle Ambient OS Orbit Ring -->
+  <circle cx="32" cy="33" r="23" stroke="#252A40" stroke-width="1" stroke-dasharray="3 3" opacity="0.6" />
+  <circle cx="32" cy="33" r="15" stroke="#2C334D" stroke-width="0.75" opacity="0.4" />
+
+  <!-- Stylized Geometric "A" + Triskelion Loop (Academic, Personal, AI) -->
+  <!-- Left Wing (Cyan to Indigo) -->
+  <path d="M 32 13 L 16 46 L 24.5 46 L 32 29.5 L 34.5 35 L 39 31.5 Z" fill="url(#grad-ai)" opacity="0.95" />
+
+  <!-- Right Wing (Indigo to Magenta) -->
+  <path d="M 32 13 L 48 46 L 39.5 46 L 32 29.5 L 39 31.5 Z" fill="url(#grad-academic)" opacity="0.95" />
+
+  <!-- Cross Orbit Intersect / Dynamic Bridge -->
+  <path d="M 21.5 37.5 C 26 35 38 35 42.5 37.5 L 44 34 C 38 31 26 31 20 34 Z" fill="url(#grad-personal)" />
+
+  <!-- Autonomous AI Kernel Node (Glowing Core) -->
+  <circle cx="32" cy="33" r="4.5" fill="url(#kernel-radial)" filter="url(#glow-kernel)" />
+  <circle cx="32" cy="33" r="1.75" fill="#FFFFFF" />
+
+  <!-- Micro Orbit Data Points -->
+  <circle cx="48" cy="22" r="1.5" fill="#38BDF8" opacity="0.8" />
+  <circle cx="16" cy="25" r="1.25" fill="#A855F7" opacity="0.8" />
+  <circle cx="32" cy="51" r="1.5" fill="#EC4899" opacity="0.8" />
+</svg>
