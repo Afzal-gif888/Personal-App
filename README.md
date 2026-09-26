@@ -1,4 +1,4 @@
-﻿# AgentOS
+# AgentOS
 
 AgentOS is organized as three independent components with API boundaries:
 
@@ -34,3 +34,5 @@ Keep frontend variables limited to public browser configuration (for example, a 
 ## Component ownership
 
 See each component README for scope, setup status, and the contract still required to make the whole system runnable.
+
+# Personal-App
