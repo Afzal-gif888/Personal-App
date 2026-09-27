@@ -11,62 +11,69 @@ export interface TabsProps {
   tabs: TabItem[];
   activeTab: string;
   onChange: (tabId: string) => void;
+  /** underline: page-level sections. pills: compact segmented control. */
   variant?: 'underline' | 'pills';
   className?: string;
 }
 
-export const Tabs: React.FC<TabsProps> = ({
-  tabs,
-  activeTab,
-  onChange,
-  variant = 'underline',
-  className,
-}) => {
+export const Tabs: React.FC<TabsProps> = ({ tabs, activeTab, onChange, variant = 'underline', className }) => {
+  if (variant === 'pills') {
+    return (
+      <div
+        role="tablist"
+        className={cn('inline-flex items-center gap-0.5 p-0.5 rounded-lg bg-subtle border border-line max-w-full overflow-x-auto no-scrollbar', className)}
+      >
+        {tabs.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => onChange(tab.id)}
+              className={cn(
+                'inline-flex items-center gap-1.5 h-7 px-2.5 rounded-md text-sm font-medium whitespace-nowrap transition-colors',
+                isActive ? 'bg-surface text-fg shadow-xs' : 'text-fg-subtle hover:text-fg'
+              )}
+            >
+              {tab.label}
+              {tab.badge !== undefined && (
+                <span className={cn('tabular text-xs', isActive ? 'text-fg-muted' : 'text-fg-faint')}>{tab.badge}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
-    <div
-      className={cn(
-        'flex items-center gap-1 overflow-x-auto no-scrollbar text-left',
-        variant === 'underline' && 'border-b border-[#EAEAEA]',
-        className
-      )}
-    >
+    <div role="tablist" className={cn('flex items-center gap-5 border-b border-line overflow-x-auto no-scrollbar', className)}>
       {tabs.map((tab) => {
         const isActive = activeTab === tab.id;
         return (
           <button
             key={tab.id}
+            role="tab"
+            aria-selected={isActive}
             onClick={() => onChange(tab.id)}
             className={cn(
-              'flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors shrink-0 whitespace-nowrap cursor-pointer',
-              variant === 'underline' && [
-                'border-b-2 -mb-px',
-                isActive
-                  ? 'border-black text-[#111111] font-semibold'
-                  : 'border-transparent text-[#666666] hover:text-[#111111]',
-              ],
-              variant === 'pills' && [
-                'rounded-md',
-                isActive
-                  ? 'bg-black text-white font-semibold'
-                  : 'bg-[#F7F7F7] text-[#666666] hover:bg-[#F3F3F3] hover:text-[#111111]',
-              ]
+              'relative inline-flex items-center gap-2 h-10 text-sm font-medium whitespace-nowrap transition-colors',
+              isActive ? 'text-fg' : 'text-fg-subtle hover:text-fg'
             )}
           >
-            <span>{tab.label}</span>
+            {tab.label}
             {tab.badge !== undefined && (
               <span
                 className={cn(
-                  'rounded-full px-1.5 py-0.2 text-[10px] font-medium',
-                  isActive
-                    ? variant === 'pills'
-                      ? 'bg-neutral-800 text-white'
-                      : 'bg-black text-white'
-                    : 'bg-[#EAEAEA] text-[#666666]'
+                  'tabular inline-flex items-center h-5 min-w-5 justify-center px-1.5 rounded-full text-xs',
+                  isActive ? 'bg-accent-subtle text-accent-fg' : 'bg-subtle text-fg-subtle'
                 )}
               >
                 {tab.badge}
               </span>
             )}
+            {isActive && <span className="absolute inset-x-0 -bottom-px h-0.5 bg-accent rounded-full" />}
           </button>
         );
       })}

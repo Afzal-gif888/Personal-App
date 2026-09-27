@@ -1,15 +1,6 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import {
-  CheckSquare,
-  CalendarDays,
-  Sparkles,
-  ArrowRight,
-  Bell,
-  Receipt,
-  Target,
-  Wallet,
-} from 'lucide-react';
+import { CheckSquare, CalendarDays, Receipt, Wallet, ArrowRight, Check, X, Inbox } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useTasks } from '../hooks/useTasks';
 import { useReminders } from '../hooks/useReminders';
@@ -18,347 +9,319 @@ import { useEvents } from '../hooks/useEvents';
 import { useBills } from '../hooks/useBills';
 import { useGoals } from '../hooks/useGoals';
 import { useExpenses } from '../hooks/useExpenses';
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../components/ui/Card';
+import { useApprovals } from '../hooks/useApprovals';
+import { useAgentRuns } from '../hooks/useAgentRuns';
+import { Page, PageHeader } from '../components/ui/PageHeader';
+import { StatCard } from '../components/ui/StatCard';
+import { Panel } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { Checkbox } from '../components/ui/Checkbox';
-import { getPriorityBadgeColor, formatDate } from '../utils/formatters';
+import { Progress } from '../components/ui/Progress';
+import { EmptyState } from '../components/ui/EmptyState';
+import { WorkflowOverview } from '../components/dashboard/WorkflowOverview';
+import {
+  formatCurrency,
+  formatDayLabel,
+  formatLongDate,
+  formatTime,
+  todayISO,
+  daysUntil,
+} from '../utils/formatters';
+import { PRIORITY_STYLES, BILL_STATUS_STYLES, statusStyle } from '../utils/status';
 
-const CATEGORY_COLORS: Record<string, string> = {
-  academic: 'bg-blue-50 text-blue-700',
-  personal: 'bg-purple-50 text-purple-700',
-  financial: 'bg-emerald-50 text-emerald-700',
-  career: 'bg-amber-50 text-amber-700',
-  general: 'bg-[#F7F7F7] text-[#666666]',
-};
+interface ScheduleEntry {
+  id: string;
+  date: string;
+  time: string;
+  title: string;
+  kind: 'Event' | 'Study' | 'Reminder';
+  detail?: string;
+}
+
+const ViewAll: React.FC<{ to: string; label?: string }> = ({ to, label = 'View all' }) => (
+  <Link to={to} className="inline-flex items-center gap-1 text-sm font-medium text-accent hover:text-accent-hover">
+    {label}
+    <ArrowRight className="size-3.5" />
+  </Link>
+);
 
 export const DashboardPage: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { tasks, toggleComplete: toggleTask } = useTasks();
-  const { reminders, toggleComplete: toggleReminder, snoozeReminder } = useReminders();
+  const { reminders } = useReminders();
   const { sessions } = useStudyPlan();
   const { data: events = [] } = useEvents();
   const { data: bills = [] } = useBills();
   const { data: goals = [] } = useGoals();
   const { data: expenses = [] } = useExpenses();
-  const navigate = useNavigate();
+  const { approvals, respondToApproval, isResponding } = useApprovals();
+  const { agentRuns } = useAgentRuns();
 
-  const pendingTasks = tasks.filter((t) => t.status !== 'completed').slice(0, 5);
-  const todaysReminders = reminders.filter((r) => r.status === 'today' || r.status === 'upcoming').slice(0, 3);
-  const upcomingEvents = events.slice(0, 3);
-  const unpaidBills = bills.filter((b) => b.status !== 'paid').slice(0, 3);
-  const activeGoals = goals.filter((g) => g.status === 'active').slice(0, 3);
-  const todaysSessions = sessions.slice(0, 2);
+  const today = todayISO();
+  const openTasks = tasks.filter((t) => t.status !== 'completed');
+  const dueToday = openTasks.filter((t) => t.dueDate <= today).length;
+  const tasksDueSoon = [...openTasks].sort((a, b) => a.dueDate.localeCompare(b.dueDate)).slice(0, 5);
 
-  // Compute summary stats
-  const pendingTaskCount = tasks.filter((t) => t.status !== 'completed').length;
-  const upcomingEventCount = events.length;
-  const unpaidBillTotal = bills.filter((b) => b.status !== 'paid').reduce((s, b) => s + b.amount, 0);
-  const thisMonthExpenses = expenses
-    .filter((e) => e.date.startsWith(new Date().toISOString().slice(0, 7)))
-    .reduce((s, e) => s + e.amount, 0);
+  const unpaidBills = bills.filter((b) => b.status !== 'paid').sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const unpaidTotal = unpaidBills.reduce((s, b) => s + b.amount, 0);
+  const overdueCount = unpaidBills.filter((b) => b.status === 'overdue').length;
 
-  // Time-based greeting
+  const month = today.slice(0, 7);
+  const spentThisMonth = expenses.filter((e) => e.date.startsWith(month)).reduce((s, e) => s + e.amount, 0);
+
+  const pendingApprovals = approvals.filter((a) => a.status === 'pending');
+  const activeGoals = goals.filter((g) => g.status === 'active').slice(0, 4);
+
+  const schedule = useMemo<ScheduleEntry[]>(() => {
+    const entries: ScheduleEntry[] = [
+      ...events.map((e) => ({
+        id: e.id,
+        date: e.date,
+        time: e.startTime,
+        title: e.title,
+        kind: 'Event' as const,
+        detail: e.location,
+      })),
+      ...sessions
+        .filter((s) => s.status === 'scheduled')
+        .map((s) => ({ id: s.id, date: s.date, time: s.startTime, title: s.topic, kind: 'Study' as const, detail: s.subject })),
+      ...reminders
+        .filter((r) => r.status !== 'completed')
+        .map((r) => ({ id: r.id, date: r.date, time: r.time, title: r.title, kind: 'Reminder' as const })),
+    ];
+    return entries
+      .filter((e) => {
+        const d = daysUntil(e.date);
+        return d >= 0 && d <= 7;
+      })
+      .sort((a, b) => (a.date + a.time).localeCompare(b.date + b.time))
+      .slice(0, 7);
+  }, [events, sessions, reminders]);
+
+  const upcomingEventCount = events.filter((e) => {
+    const d = daysUntil(e.date);
+    return d >= 0 && d <= 7;
+  }).length;
+
+  const scheduleByDay = schedule.reduce<Record<string, ScheduleEntry[]>>((acc, entry) => {
+    (acc[entry.date] ||= []).push(entry);
+    return acc;
+  }, {});
+
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const firstName = user?.name?.split(' ')[0];
 
   return (
-    <div className="space-y-6 text-left">
-      {/* Header Greeting */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#EAEAEA]">
-        <div>
-          <h1 className="text-lg sm:text-xl font-bold text-[#111111] tracking-tight">
-            {greeting}, {user?.name?.split(' ')[0] || 'Alex'}
-          </h1>
-          <p className="text-xs text-[#666666] mt-0.5">Here's everything that needs your attention today.</p>
-        </div>
-        <Button
-          variant="primary" size="sm" onClick={() => navigate('/chat')}
-          leftIcon={<Sparkles className="w-3.5 h-3.5 text-emerald-400" />}
-        >
-          Ask AI
-        </Button>
-      </div>
-
-      {/* Top Metrics Bar */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card hoverable onClick={() => navigate('/tasks')}>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] text-[#8A8A8A] font-medium">Pending Tasks</span>
-            <CheckSquare className="w-3.5 h-3.5 text-[#8A8A8A]" />
-          </div>
-          <div className="text-xl font-bold text-[#111111]">{pendingTaskCount}</div>
-          <p className="text-[10px] text-[#8A8A8A] mt-0.5">across all categories</p>
-        </Card>
-
-        <Card hoverable onClick={() => navigate('/calendar')}>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] text-[#8A8A8A] font-medium">Events</span>
-            <CalendarDays className="w-3.5 h-3.5 text-[#8A8A8A]" />
-          </div>
-          <div className="text-xl font-bold text-[#111111]">{upcomingEventCount}</div>
-          <p className="text-[10px] text-[#8A8A8A] mt-0.5">upcoming</p>
-        </Card>
-
-        <Card hoverable onClick={() => navigate('/bills')}>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] text-[#8A8A8A] font-medium">Bills Due</span>
-            <Receipt className="w-3.5 h-3.5 text-[#8A8A8A]" />
-          </div>
-          <div className="text-xl font-bold text-[#111111]">₹{unpaidBillTotal.toLocaleString()}</div>
-          <p className="text-[10px] text-[#8A8A8A] mt-0.5">unpaid</p>
-        </Card>
-
-        <Card hoverable onClick={() => navigate('/expenses')}>
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] text-[#8A8A8A] font-medium">Spent This Month</span>
-            <Wallet className="w-3.5 h-3.5 text-[#8A8A8A]" />
-          </div>
-          <div className="text-xl font-bold text-[#111111]">₹{thisMonthExpenses.toLocaleString()}</div>
-          <p className="text-[10px] text-[#8A8A8A] mt-0.5">total expenses</p>
-        </Card>
-      </div>
-
-      {/* AI Assistant Callout Card */}
-      <Card className="bg-black text-white border-black p-4 sm:p-5">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-emerald-400" />
-              <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider">AI Assistant</span>
-            </div>
-            <h3 className="text-sm sm:text-base font-bold text-white">What would you like to work on?</h3>
-            <p className="text-xs text-neutral-400">
-              Manage tasks, study plans, bills, expenses, goals, calendar events, and more — all in one place.
-            </p>
-          </div>
-          <Button
-            variant="secondary" size="sm" onClick={() => navigate('/chat')}
-            className="shrink-0 bg-white text-black hover:bg-neutral-100"
-            rightIcon={<ArrowRight className="w-3.5 h-3.5" />}
-          >
-            Open Assistant
+    <Page>
+      <PageHeader
+        title={firstName ? `${greeting}, ${firstName}` : greeting}
+        description={formatLongDate()}
+        actions={
+          <Button variant="secondary" size="sm" onClick={() => navigate('/tasks')} leftIcon={<CheckSquare className="size-4" />}>
+            New task
           </Button>
-        </div>
-      </Card>
+        }
+      />
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Column: Tasks + Upcoming Bills */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Today's Tasks */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <div>
-                <CardTitle>Tasks</CardTitle>
-                <CardDescription>Priority items requiring your attention</CardDescription>
-              </div>
-              <Link to="/tasks" className="text-xs font-semibold text-black hover:underline">
-                View all ({tasks.length})
-              </Link>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {pendingTasks.length === 0 ? (
-                  <p className="text-xs text-[#8A8A8A] py-4 text-center">All caught up — no pending tasks!</p>
-                ) : (
-                  pendingTasks.map((t) => (
-                    <div
-                      key={t.id}
-                      className="flex items-start justify-between gap-3 p-3 rounded-md border border-[#EAEAEA] bg-white hover:bg-[#F7F7F7] transition-colors"
-                    >
-                      <div className="flex items-start gap-3">
-                        <Checkbox checked={t.status === 'completed'} onChange={() => toggleTask(t.id)} className="mt-0.5" />
-                        <div className="space-y-1">
-                          <h4 className="text-xs font-semibold text-[#111111] leading-snug">{t.title}</h4>
-                          <div className="flex items-center gap-2 text-[11px] text-[#666666]">
-                            <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${CATEGORY_COLORS[t.category] || ''}`}>
-                              {t.category}
-                            </span>
-                            {t.subject && <span className="font-medium text-[#111111]">{t.subject}</span>}
-                            <span>•</span>
-                            <span>Due {t.dueTime || '11:59 PM'}</span>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <StatCard
+          label="Open tasks"
+          value={openTasks.length}
+          hint={dueToday ? `${dueToday} due today or earlier` : 'Nothing due today'}
+          icon={<CheckSquare />}
+          onClick={() => navigate('/tasks')}
+        />
+        <StatCard
+          label="Events this week"
+          value={upcomingEventCount}
+          hint="Next 7 days"
+          icon={<CalendarDays />}
+          onClick={() => navigate('/calendar')}
+        />
+        <StatCard
+          label="Bills outstanding"
+          value={formatCurrency(unpaidTotal)}
+          hint={overdueCount ? `${overdueCount} overdue` : `${unpaidBills.length} unpaid`}
+          tone={overdueCount ? 'danger' : 'default'}
+          icon={<Receipt />}
+          onClick={() => navigate('/bills')}
+        />
+        <StatCard
+          label="Spent this month"
+          value={formatCurrency(spentThisMonth)}
+          hint="All categories"
+          icon={<Wallet />}
+          onClick={() => navigate('/expenses')}
+        />
+      </div>
+
+      <WorkflowOverview
+        runCount={agentRuns.length}
+        pendingCount={pendingApprovals.length}
+        approvedCount={approvals.filter((a) => a.status === 'approved').length}
+        openTaskCount={openTasks.length}
+      />
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6 items-start">
+        <div className="xl:col-span-2 space-y-4 sm:space-y-6">
+          <Panel title="Tasks due soon" description="Sorted by due date" action={<ViewAll to="/tasks" />}>
+            {tasksDueSoon.length === 0 ? (
+              <EmptyState bare icon={<CheckSquare />} title="All caught up" description="No open tasks right now." />
+            ) : (
+              <ul className="divide-y divide-line">
+                {tasksDueSoon.map((t) => {
+                  const priority = statusStyle(PRIORITY_STYLES, t.priority);
+                  const overdue = daysUntil(t.dueDate) < 0;
+                  return (
+                    <li key={t.id} className="flex items-center gap-3 px-5 py-3">
+                      <Checkbox
+                        checked={false}
+                        onChange={() => toggleTask(t.id)}
+                        aria-label={`Mark "${t.title}" as done`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-fg truncate">{t.title}</p>
+                        <p className="text-xs text-fg-subtle truncate mt-0.5">
+                          {t.subject ? `${t.subject} · ` : ''}
+                          <span className={overdue ? 'text-danger font-medium' : undefined}>
+                            {overdue ? 'Overdue' : formatDayLabel(t.dueDate)}
+                          </span>
+                          {t.dueTime ? ` at ${formatTime(t.dueTime)}` : ''}
+                        </p>
+                      </div>
+                      <Badge variant={priority.variant} dot>
+                        {priority.label}
+                      </Badge>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Panel>
+
+          <Panel title="Schedule" description="Events, study sessions and reminders for the next 7 days" action={<ViewAll to="/calendar" label="Calendar" />}>
+            {schedule.length === 0 ? (
+              <EmptyState bare icon={<CalendarDays />} title="Nothing scheduled" description="Your next 7 days are clear." />
+            ) : (
+              <div className="divide-y divide-line">
+                {Object.entries(scheduleByDay).map(([date, entries]) => (
+                  <div key={date} className="px-5 py-3">
+                    <p className="text-xs font-medium text-fg-subtle mb-2">{formatDayLabel(date)}</p>
+                    <ul className="space-y-2">
+                      {entries.map((entry) => (
+                        <li key={`${entry.kind}-${entry.id}`} className="flex items-center gap-3">
+                          <span className="w-16 shrink-0 text-xs text-fg-subtle tabular">{formatTime(entry.time)}</span>
+                          <span
+                            className={
+                              entry.kind === 'Study'
+                                ? 'w-0.5 self-stretch rounded-full bg-accent'
+                                : entry.kind === 'Reminder'
+                                  ? 'w-0.5 self-stretch rounded-full bg-warning'
+                                  : 'w-0.5 self-stretch rounded-full bg-fg-faint'
+                            }
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm text-fg truncate">{entry.title}</p>
+                            {entry.detail && <p className="text-xs text-fg-subtle truncate">{entry.detail}</p>}
                           </div>
-                        </div>
-                      </div>
-                      <Badge className={getPriorityBadgeColor(t.priority)} size="sm">{t.priority}</Badge>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Upcoming Events & Meetings */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <div>
-                <CardTitle>Upcoming Events</CardTitle>
-                <CardDescription>Classes, meetings, and appointments</CardDescription>
-              </div>
-              <Link to="/calendar" className="text-xs font-semibold text-black hover:underline">View all</Link>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {upcomingEvents.length === 0 ? (
-                  <p className="text-xs text-[#8A8A8A] py-4 text-center">No upcoming events</p>
-                ) : (
-                  upcomingEvents.map((ev) => (
-                    <div key={ev.id} className="flex items-center justify-between p-3 rounded-md border border-[#EAEAEA] bg-white">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-md bg-[#F7F7F7] flex flex-col items-center justify-center shrink-0">
-                          <span className="text-[10px] text-[#8A8A8A] font-medium leading-none">{formatDate(ev.date).split(' ')[0]}</span>
-                          <span className="text-xs font-bold text-[#111111] leading-none">{formatDate(ev.date).split(' ')[1]}</span>
-                        </div>
-                        <div>
-                          <h4 className="text-xs font-semibold text-[#111111]">{ev.title}</h4>
-                          <p className="text-[11px] text-[#666666]">{ev.startTime}{ev.endTime ? ` – ${ev.endTime}` : ''}{ev.location ? ` · ${ev.location}` : ''}</p>
-                        </div>
-                      </div>
-                      <Badge variant="neutral" size="sm">{ev.type}</Badge>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Unpaid Bills */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <div>
-                <CardTitle>Upcoming Bills</CardTitle>
-                <CardDescription>Payments due soon</CardDescription>
-              </div>
-              <Link to="/bills" className="text-xs font-semibold text-black hover:underline">View all</Link>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                {unpaidBills.length === 0 ? (
-                  <p className="text-xs text-[#8A8A8A] py-4 text-center">All bills are paid!</p>
-                ) : (
-                  unpaidBills.map((bill) => (
-                    <div key={bill.id} className="flex items-center justify-between p-3 rounded-md border border-[#EAEAEA] bg-white">
-                      <div className="space-y-0.5">
-                        <h4 className="text-xs font-semibold text-[#111111]">{bill.title}</h4>
-                        <p className="text-[11px] text-[#666666]">Due {formatDate(bill.dueDate)}</p>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-sm font-bold text-[#111111]">₹{bill.amount.toLocaleString()}</div>
-                        <Badge
-                          className={
-                            bill.status === 'overdue' ? 'bg-red-50 text-red-700 border border-red-100' :
-                            bill.status === 'due' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
-                            'bg-blue-50 text-blue-700 border border-blue-100'
-                          }
-                          size="sm"
-                        >
-                          {bill.status}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right Column: Study Plan, Reminders, Goals */}
-        <div className="space-y-6">
-          {/* Today's Study Plan */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <div>
-                <CardTitle>Study Sessions</CardTitle>
-                <CardDescription>Scheduled study time</CardDescription>
-              </div>
-              <Link to="/study-plan" className="text-xs font-semibold text-black hover:underline">Manage</Link>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2.5">
-                {todaysSessions.length === 0 ? (
-                  <p className="text-xs text-[#8A8A8A] py-3 text-center">No study sessions scheduled</p>
-                ) : (
-                  todaysSessions.map((s) => (
-                    <div key={s.id} className="p-3 rounded-md border border-[#EAEAEA] bg-white space-y-1.5">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-mono text-[#8A8A8A]">{s.startTime} - {s.endTime}</span>
-                        <Badge variant={s.status === 'completed' ? 'success' : 'neutral'} size="sm">{s.status}</Badge>
-                      </div>
-                      <h4 className="text-xs font-semibold text-[#111111]">{s.subject}</h4>
-                      <p className="text-[11px] text-[#666666]">{s.topic}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Reminders */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <div>
-                <CardTitle>Reminders</CardTitle>
-                <CardDescription>Upcoming alerts</CardDescription>
-              </div>
-              <Link to="/reminders" className="text-xs font-semibold text-black hover:underline">All ({reminders.length})</Link>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2.5">
-                {todaysReminders.map((r) => (
-                  <div key={r.id} className="p-3 rounded-md border border-[#EAEAEA] bg-white flex items-center justify-between gap-2">
-                    <div className="space-y-0.5">
-                      <div className="flex items-center gap-1.5 text-xs font-semibold text-[#111111]">
-                        <Bell className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span>{r.title}</span>
-                      </div>
-                      <p className="text-[11px] text-[#666666]">{r.date} at {r.time}</p>
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button variant="ghost" size="sm" onClick={() => snoozeReminder({ id: r.id })} className="px-2 text-[10px]">Snooze</Button>
-                      <Button variant="outline" size="sm" onClick={() => toggleReminder(r.id)} className="px-2 text-[10px]">Done</Button>
-                    </div>
+                          <span className="text-xs text-fg-subtle shrink-0">{entry.kind}</span>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
+            )}
+          </Panel>
+        </div>
 
-          {/* Active Goals */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <div>
-                <CardTitle>Active Goals</CardTitle>
-                <CardDescription>Track your progress</CardDescription>
-              </div>
-              <Link to="/goals" className="text-xs font-semibold text-black hover:underline">View all</Link>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {activeGoals.length === 0 ? (
-                  <p className="text-xs text-[#8A8A8A] py-3 text-center">No active goals</p>
-                ) : (
-                  activeGoals.map((g) => (
-                    <div key={g.id} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Target className="w-3.5 h-3.5 text-[#8A8A8A]" />
-                          <span className="text-xs font-semibold text-[#111111]">{g.title}</span>
-                        </div>
-                        <span className="text-[11px] font-bold text-[#111111]">{g.progress}%</span>
-                      </div>
-                      <div className="h-1.5 bg-[#F7F7F7] rounded-full overflow-hidden">
-                        <div className="h-full bg-black rounded-full transition-all" style={{ width: `${g.progress}%` }} />
-                      </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-4 sm:gap-6 items-start">
+          <Panel
+            title="Awaiting your approval"
+            description="Proposed by the assistant"
+            action={pendingApprovals.length > 0 ? <ViewAll to="/approvals" label="Review" /> : undefined}
+          >
+            {pendingApprovals.length === 0 ? (
+              <EmptyState bare icon={<Inbox />} title="Inbox zero" description="Nothing needs your review." />
+            ) : (
+              <ul className="divide-y divide-line">
+                {pendingApprovals.slice(0, 3).map((a) => (
+                  <li key={a.id} className="px-5 py-3.5">
+                    <p className="text-xs font-medium text-fg-subtle">{a.type}</p>
+                    <p className="text-sm font-medium text-fg mt-0.5">{a.title}</p>
+                    <div className="flex items-center gap-2 mt-3">
+                      <Button
+                        size="xs"
+                        leftIcon={<Check className="size-3.5" />}
+                        disabled={isResponding}
+                        onClick={() => respondToApproval({ id: a.id, decision: 'approved' })}
+                      >
+                        Approve
+                      </Button>
+                      <Button
+                        size="xs"
+                        variant="secondary"
+                        leftIcon={<X className="size-3.5" />}
+                        disabled={isResponding}
+                        onClick={() => respondToApproval({ id: a.id, decision: 'rejected' })}
+                      >
+                        Reject
+                      </Button>
                     </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+
+          <Panel title="Upcoming bills" action={<ViewAll to="/bills" />}>
+            {unpaidBills.length === 0 ? (
+              <EmptyState bare icon={<Receipt />} title="All paid" description="No outstanding bills." />
+            ) : (
+              <ul className="divide-y divide-line">
+                {unpaidBills.slice(0, 4).map((bill) => {
+                  const s = statusStyle(BILL_STATUS_STYLES, bill.status);
+                  return (
+                    <li key={bill.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-fg truncate">{bill.title}</p>
+                        <p className="text-xs text-fg-subtle mt-0.5">Due {formatDayLabel(bill.dueDate)}</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-semibold text-fg tabular">{formatCurrency(bill.amount)}</p>
+                        {bill.status !== 'upcoming' && (
+                          <Badge variant={s.variant} className="mt-1">
+                            {s.label}
+                          </Badge>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </Panel>
+
+          <Panel title="Goals" action={<ViewAll to="/goals" />} bodyClassName="px-5 py-4 space-y-4">
+            {activeGoals.length === 0 ? (
+              <p className="text-sm text-fg-subtle">No active goals.</p>
+            ) : (
+              activeGoals.map((g) => (
+                <div key={g.id}>
+                  <div className="flex items-center justify-between gap-3 mb-1.5">
+                    <span className="text-sm text-fg truncate">{g.title}</span>
+                    <span className="text-xs font-medium text-fg-muted tabular">{g.progress}%</span>
+                  </div>
+                  <Progress value={g.progress} label={g.title} />
+                </div>
+              ))
+            )}
+          </Panel>
         </div>
       </div>
-    </div>
+    </Page>
   );
 };

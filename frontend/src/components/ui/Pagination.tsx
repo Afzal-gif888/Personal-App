@@ -8,35 +8,31 @@ export interface PaginationProps {
   onPageChange: (page: number) => void;
 }
 
-export const Pagination: React.FC<PaginationProps> = ({
-  currentPage,
-  totalPages,
-  onPageChange,
-}) => {
+export const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages, onPageChange }) => {
   if (totalPages <= 1) return null;
 
   return (
-    <div className="flex items-center justify-between pt-4 border-t border-[#EAEAEA] text-xs text-[#666666]">
-      <div>
-        Page <span className="font-medium text-[#111111]">{currentPage}</span> of{' '}
-        <span className="font-medium text-[#111111]">{totalPages}</span>
-      </div>
+    <div className="flex items-center justify-between px-5 py-3 border-t border-line text-sm text-fg-subtle">
+      <span>
+        Page <span className="font-medium text-fg">{currentPage}</span> of{' '}
+        <span className="font-medium text-fg">{totalPages}</span>
+      </span>
       <div className="flex items-center gap-2">
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           disabled={currentPage <= 1}
           onClick={() => onPageChange(currentPage - 1)}
-          leftIcon={<ChevronLeft className="w-3.5 h-3.5" />}
+          leftIcon={<ChevronLeft className="size-4" />}
         >
           Previous
         </Button>
         <Button
-          variant="outline"
+          variant="secondary"
           size="sm"
           disabled={currentPage >= totalPages}
           onClick={() => onPageChange(currentPage + 1)}
-          rightIcon={<ChevronRight className="w-3.5 h-3.5" />}
+          rightIcon={<ChevronRight className="size-4" />}
         >
           Next
         </Button>

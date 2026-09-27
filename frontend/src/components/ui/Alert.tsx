@@ -6,36 +6,31 @@ export interface AlertProps {
   variant?: 'info' | 'success' | 'warning' | 'error';
   title?: string;
   children: React.ReactNode;
+  action?: React.ReactNode;
   className?: string;
 }
 
-export const Alert: React.FC<AlertProps> = ({
-  variant = 'info',
-  title,
-  children,
-  className,
-}) => {
-  const styles = {
-    info: 'bg-sky-50/60 border-sky-200 text-sky-900',
-    success: 'bg-emerald-50/60 border-emerald-200 text-emerald-900',
-    warning: 'bg-amber-50/60 border-amber-200 text-amber-900',
-    error: 'bg-rose-50/60 border-rose-200 text-rose-900',
-  };
-
-  const icons = {
-    info: <Info className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />,
-    success: <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />,
-    warning: <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />,
-    error: <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />,
-  };
-
-  return (
-    <div className={cn('flex items-start gap-2.5 p-3 rounded-md border text-xs text-left', styles[variant], className)}>
-      {icons[variant]}
-      <div className="space-y-0.5 flex-1">
-        {title && <h4 className="font-semibold leading-none">{title}</h4>}
-        <div className="text-[11px] leading-relaxed opacity-90">{children}</div>
-      </div>
-    </div>
-  );
+const STYLES = {
+  info: 'bg-accent-subtle border-accent-line',
+  success: 'bg-success-subtle border-success-line',
+  warning: 'bg-warning-subtle border-warning-line',
+  error: 'bg-danger-subtle border-danger-line',
 };
+
+const ICONS = {
+  info: <Info className="size-4 text-accent" />,
+  success: <CheckCircle2 className="size-4 text-success" />,
+  warning: <AlertTriangle className="size-4 text-warning" />,
+  error: <AlertCircle className="size-4 text-danger" />,
+};
+
+export const Alert: React.FC<AlertProps> = ({ variant = 'info', title, children, action, className }) => (
+  <div className={cn('flex items-start gap-3 p-3.5 rounded-lg border', STYLES[variant], className)}>
+    <span className="mt-0.5 shrink-0">{ICONS[variant]}</span>
+    <div className="flex-1 min-w-0 text-sm">
+      {title && <p className="font-medium text-fg">{title}</p>}
+      <div className={cn('text-fg-muted', title && 'mt-0.5')}>{children}</div>
+    </div>
+    {action && <div className="shrink-0">{action}</div>}
+  </div>
+);

@@ -21,39 +21,36 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onConfirm,
   title,
   message,
-  confirmText = 'Confirm',
+  confirmText = 'Delete',
   cancelText = 'Cancel',
   isDestructive = true,
   isLoading = false,
-}) => {
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      title={
-        <div className="flex items-center gap-2 text-left">
-          {isDestructive && <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />}
-          <span>{title}</span>
-        </div>
-      }
-      maxWidth="sm"
-      footer={
-        <>
-          <Button variant="outline" size="sm" onClick={onClose} disabled={isLoading}>
-            {cancelText}
-          </Button>
-          <Button
-            variant={isDestructive ? 'destructive' : 'primary'}
-            size="sm"
-            onClick={onConfirm}
-            isLoading={isLoading}
-          >
-            {confirmText}
-          </Button>
-        </>
-      }
-    >
-      <p className="text-xs sm:text-sm text-[#666666] leading-relaxed text-left">{message}</p>
-    </Modal>
-  );
-};
+}) => (
+  <Modal
+    isOpen={isOpen}
+    onClose={onClose}
+    maxWidth="sm"
+    footer={
+      <>
+        <Button variant="secondary" size="sm" onClick={onClose} disabled={isLoading}>
+          {cancelText}
+        </Button>
+        <Button variant={isDestructive ? 'destructive' : 'primary'} size="sm" onClick={onConfirm} isLoading={isLoading}>
+          {confirmText}
+        </Button>
+      </>
+    }
+  >
+    <div className="flex items-start gap-4 -mt-2">
+      {isDestructive && (
+        <span className="flex items-center justify-center size-10 shrink-0 rounded-full bg-danger-subtle">
+          <AlertTriangle className="size-5 text-danger" />
+        </span>
+      )}
+      <div>
+        <h2 className="text-base font-semibold text-fg">{title}</h2>
+        <p className="text-sm text-fg-subtle mt-1">{message}</p>
+      </div>
+    </div>
+  </Modal>
+);

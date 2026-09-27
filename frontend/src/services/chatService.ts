@@ -26,7 +26,7 @@ export const chatService = {
   async getConversations(): Promise<Conversation[]> {
     await delay(120);
     const currentUser = storage.getUser();
-    const userId = currentUser?.id || 'usr-alex-101';
+    const userId = currentUser?.id || 'user-alex-101';
 
     // User isolation: Only return conversations belonging to this user
     return mockConversationsDb
@@ -54,7 +54,7 @@ export const chatService = {
   async createConversation(title = 'New Conversation'): Promise<Conversation> {
     await delay(100);
     const currentUser = storage.getUser();
-    const userId = currentUser?.id || 'usr-alex-101';
+    const userId = currentUser?.id || 'user-alex-101';
 
     const newConv: Conversation = {
       id: `conv-${Date.now()}`,

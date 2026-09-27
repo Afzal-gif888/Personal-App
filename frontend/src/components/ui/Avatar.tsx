@@ -1,50 +1,44 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { cn } from '../../utils/cn';
 
 export interface AvatarProps {
   src?: string;
   name: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   className?: string;
 }
 
-export const Avatar: React.FC<AvatarProps> = ({ src, name, size = 'md', className }) => {
-  const initials = name
-    ? name
-        .split(' ')
-        .map((n) => n[0])
-        .join('')
-        .substring(0, 2)
-        .toUpperCase()
-    : 'US';
+const SIZES = {
+  xs: 'size-6 text-2xs',
+  sm: 'size-8 text-xs',
+  md: 'size-9 text-sm',
+  lg: 'size-14 text-lg',
+};
 
-  const sizes = {
-    sm: 'w-7 h-7 text-[10px]',
-    md: 'w-9 h-9 text-xs',
-    lg: 'w-12 h-12 text-sm',
-  };
+export const Avatar: React.FC<AvatarProps> = ({ src, name, size = 'md', className }) => {
+  const [failed, setFailed] = useState(false);
+  const initials =
+    name
+      .split(' ')
+      .filter(Boolean)
+      .map((n) => n[0])
+      .join('')
+      .substring(0, 2)
+      .toUpperCase() || 'U';
 
   return (
-    <div
+    <span
       className={cn(
-        'relative inline-flex items-center justify-center rounded-full bg-black text-white font-medium overflow-hidden shrink-0 border border-[#EAEAEA]',
-        sizes[size],
+        'relative inline-flex items-center justify-center rounded-full bg-accent-subtle text-accent-fg font-semibold overflow-hidden shrink-0 ring-1 ring-accent-line',
+        SIZES[size],
         className
       )}
     >
-      {src ? (
-        <img
-          src={src}
-          alt={name}
-          className="w-full h-full object-cover"
-          onError={(e) => {
-            // Fallback to initials if image fails to load
-            (e.target as HTMLElement).style.display = 'none';
-          }}
-        />
+      {src && !failed ? (
+        <img src={src} alt={name} className="size-full object-cover" onError={() => setFailed(true)} />
       ) : (
-        <span>{initials}</span>
+        <span aria-hidden="true">{initials}</span>
       )}
-    </div>
+    </span>
   );
 };

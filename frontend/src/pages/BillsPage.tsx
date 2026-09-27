@@ -1,283 +1,412 @@
 import React, { useState } from 'react';
-import { Plus, Trash2, CheckCircle, AlertCircle, Clock, CreditCard, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Receipt, Repeat, Check, CreditCard } from 'lucide-react';
 import { useBills } from '../hooks/useBills';
 import { usePaymentPlans } from '../hooks/usePaymentPlans';
 import type { BillStatus } from '../types';
+import { Page, PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
+import { Checkbox } from '../components/ui/Checkbox';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
-import { EmptyState } from '../components/ui/EmptyState';
 import { Tabs } from '../components/ui/Tabs';
-import { formatDate } from '../utils/formatters';
+import { StatCard } from '../components/ui/StatCard';
+import { Progress } from '../components/ui/Progress';
+import { EmptyState } from '../components/ui/EmptyState';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { RowActions } from '../components/ui/RowActions';
+import { Table, THead, TBody, TR, TH, TD } from '../components/ui/Table';
+import { Toolbar } from '../components/ui/Toolbar';
+import { DesktopOnly, MobileList, MobileRow, StatGrid } from '../components/ui/ResponsiveList';
+import { formatCurrency, formatDayLabel, formatDate, daysUntil, todayISO, capitalize } from '../utils/formatters';
+import { BILL_STATUS_STYLES, statusStyle } from '../utils/status';
 
-const STATUS_CONFIG: Record<BillStatus, { label: string; color: string; icon: React.ReactNode }> = {
-  upcoming: { label: 'Upcoming', color: 'bg-blue-50 text-blue-700 border border-blue-100', icon: <Clock className="w-3 h-3" /> },
-  due: { label: 'Due Today', color: 'bg-amber-50 text-amber-700 border border-amber-100', icon: <AlertCircle className="w-3 h-3" /> },
-  overdue: { label: 'Overdue', color: 'bg-red-50 text-red-700 border border-red-100', icon: <AlertCircle className="w-3 h-3" /> },
-  paid: { label: 'Paid', color: 'bg-emerald-50 text-emerald-700 border border-emerald-100', icon: <CheckCircle className="w-3 h-3" /> },
-};
+const BILL_CATEGORIES = [
+  { value: 'utilities', label: 'Utilities' },
+  { value: 'rent', label: 'Rent / hostel' },
+  { value: 'internet', label: 'Internet' },
+  { value: 'phone', label: 'Phone' },
+  { value: 'education', label: 'Education' },
+  { value: 'entertainment', label: 'Entertainment' },
+  { value: 'other', label: 'Other' },
+];
 
 export const BillsPage: React.FC = () => {
   const { data: bills = [], create, markPaid, remove } = useBills();
   const { data: plans = [], recordPayment, remove: removePlan } = usePaymentPlans();
 
-  const [activeTab, setActiveTab] = useState('bills');
-  const [statusFilter, setStatusFilter] = useState<BillStatus | 'all'>('all');
+  const [activeTab, setActiveTab] = useState<'bills' | 'plans'>('bills');
+  const [statusFilter, setStatusFilter] = useState<BillStatus | 'unpaid' | 'all'>('unpaid');
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deleting, setDeleting] = useState<{ kind: 'bill' | 'plan'; id: string } | null>(null);
 
-  // Bill form
   const [billTitle, setBillTitle] = useState('');
   const [amount, setAmount] = useState('');
-  const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState(todayISO());
   const [category, setCategory] = useState('utilities');
   const [isRecurring, setIsRecurring] = useState(false);
   const [frequency, setFrequency] = useState('monthly');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [notes, setNotes] = useState('');
 
-  const resetForm = () => {
-    setBillTitle(''); setAmount(''); setDueDate(new Date().toISOString().split('T')[0]);
-    setCategory('utilities'); setIsRecurring(false); setFrequency('monthly');
-    setPaymentMethod(''); setNotes('');
+  const openCreate = () => {
+    setBillTitle('');
+    setAmount('');
+    setDueDate(todayISO());
+    setCategory('utilities');
+    setIsRecurring(false);
+    setFrequency('monthly');
+    setPaymentMethod('');
+    setNotes('');
+    setIsModalOpen(true);
   };
 
   const handleBillSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!billTitle.trim() || !amount) return;
     await create.mutateAsync({
-      title: billTitle, amount: parseFloat(amount), dueDate, category,
-      status: 'upcoming', isRecurring, frequency: isRecurring ? frequency : undefined,
-      paymentMethod, notes,
+      title: billTitle,
+      amount: parseFloat(amount),
+      dueDate,
+      category,
+      status: 'upcoming',
+      isRecurring,
+      frequency: isRecurring ? frequency : undefined,
+      paymentMethod,
+      notes,
     });
-    resetForm();
     setIsModalOpen(false);
   };
 
-  const filteredBills = bills.filter((b) => statusFilter === 'all' || b.status === statusFilter);
-
-  // Summary stats
   const unpaid = bills.filter((b) => b.status !== 'paid');
-  const totalUnpaid = unpaid.reduce((s, b) => s + b.amount, 0);
-  const overdue = bills.filter((b) => b.status === 'overdue').length;
+  const outstanding = unpaid.reduce((s, b) => s + b.amount, 0);
+  const overdue = bills.filter((b) => b.status === 'overdue');
+  const dueThisWeek = unpaid.filter((b) => daysUntil(b.dueDate) <= 7);
+  const activePlans = plans.filter((p) => p.status === 'active');
+
+  const filteredBills = bills
+    .filter((b) => (statusFilter === 'all' ? true : statusFilter === 'unpaid' ? b.status !== 'paid' : b.status === statusFilter))
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
 
   return (
-    <div className="space-y-6 text-left">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#EAEAEA]">
-        <div>
-          <h1 className="text-lg sm:text-xl font-bold text-[#111111] tracking-tight">Bills & Payments</h1>
-          <p className="text-xs text-[#666666] mt-0.5">Track bills, subscriptions, and payment plans</p>
-        </div>
-        {activeTab === 'bills' && (
-          <Button variant="primary" size="sm" onClick={() => setIsModalOpen(true)} leftIcon={<Plus className="w-4 h-4" />}>
-            Add Bill
-          </Button>
-        )}
-      </div>
+    <Page>
+      <PageHeader
+        title="Bills & payments"
+        description="Upcoming bills, subscriptions and instalment plans."
+        actions={
+          activeTab === 'bills' && (
+            <Button onClick={openCreate} leftIcon={<Plus className="size-4" />}>
+              New bill
+            </Button>
+          )
+        }
+      />
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        <Card className="bg-[#F7F7F7] border-0">
-          <div className="text-[11px] text-[#8A8A8A] font-medium">Total Unpaid</div>
-          <div className="text-lg font-bold text-[#111111] mt-1">₹{totalUnpaid.toLocaleString()}</div>
-        </Card>
-        <Card className={`border-0 ${overdue > 0 ? 'bg-red-50' : 'bg-[#F7F7F7]'}`}>
-          <div className={`text-[11px] font-medium ${overdue > 0 ? 'text-red-600' : 'text-[#8A8A8A]'}`}>Overdue</div>
-          <div className={`text-lg font-bold mt-1 ${overdue > 0 ? 'text-red-700' : 'text-[#111111]'}`}>{overdue}</div>
-        </Card>
-        <Card className="bg-[#F7F7F7] border-0 col-span-2 sm:col-span-1">
-          <div className="text-[11px] text-[#8A8A8A] font-medium">Active Plans</div>
-          <div className="text-lg font-bold text-[#111111] mt-1">{plans.filter((p) => p.status === 'active').length}</div>
-        </Card>
-      </div>
+      <StatGrid>
+        <StatCard label="Outstanding" value={formatCurrency(outstanding)} hint={`${unpaid.length} unpaid bills`} />
+        <StatCard
+          label="Overdue"
+          value={overdue.length}
+          hint={overdue.length ? formatCurrency(overdue.reduce((s, b) => s + b.amount, 0)) : 'Nothing overdue'}
+          tone={overdue.length ? 'danger' : 'default'}
+        />
+        <StatCard label="Due in 7 days" value={dueThisWeek.length} hint={formatCurrency(dueThisWeek.reduce((s, b) => s + b.amount, 0))} />
+        <StatCard label="Active plans" value={activePlans.length} hint={formatCurrency(activePlans.reduce((s, p) => s + p.remainingAmount, 0)) + ' remaining'} />
+      </StatGrid>
 
-      {/* Tabs */}
       <Tabs
         activeTab={activeTab}
-        onChange={setActiveTab}
+        onChange={(id) => setActiveTab(id as 'bills' | 'plans')}
         tabs={[
-          { id: 'bills', label: 'Bills & Subscriptions' },
-          { id: 'plans', label: 'Payment Plans' },
+          { id: 'bills', label: 'Bills', badge: bills.length },
+          { id: 'plans', label: 'Payment plans', badge: plans.length },
         ]}
       />
 
-      {activeTab === 'bills' && (
+      {activeTab === 'bills' ? (
         <>
-          {/* Status Filter */}
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-            {(['all', 'upcoming', 'due', 'overdue', 'paid'] as const).map((s) => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors shrink-0 ${
-                  statusFilter === s ? 'bg-black text-white' : 'bg-[#F7F7F7] text-[#666666] hover:bg-[#F3F3F3] hover:text-[#111111]'
-                }`}
-              >
-                {s === 'all' ? 'All' : STATUS_CONFIG[s].label}
-              </button>
-            ))}
-          </div>
+          <Toolbar>
+            <Tabs
+              variant="pills"
+              activeTab={statusFilter}
+              onChange={(id) => setStatusFilter(id as BillStatus | 'unpaid' | 'all')}
+              tabs={[
+                { id: 'unpaid', label: 'Unpaid', badge: unpaid.length },
+                { id: 'overdue', label: 'Overdue', badge: overdue.length },
+                { id: 'paid', label: 'Paid', badge: bills.filter((b) => b.status === 'paid').length },
+                { id: 'all', label: 'All', badge: bills.length },
+              ]}
+            />
+          </Toolbar>
 
-          {filteredBills.length === 0 ? (
-            <EmptyState title="No bills" description="Add bills to track upcoming payments." actionLabel="Add Bill" onAction={() => setIsModalOpen(true)} />
-          ) : (
-            <div className="space-y-2">
-              {filteredBills.map((bill) => {
-                const cfg = STATUS_CONFIG[bill.status];
-                return (
-                  <Card key={bill.id} className="hover:border-[#D0D0D0] transition-colors">
-                    <div className="flex items-center justify-between gap-4">
-                      <div className="flex-1 min-w-0 space-y-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className={`inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full ${cfg.color}`}>
-                            {cfg.icon}{cfg.label}
-                          </span>
-                          {bill.isRecurring && (
-                            <span className="inline-flex items-center gap-1 text-[10px] text-[#8A8A8A]">
-                              <RefreshCw className="w-2.5 h-2.5" />{bill.frequency}
-                            </span>
+          <Card flush className="overflow-hidden">
+            {filteredBills.length === 0 ? (
+              <EmptyState bare icon={<Receipt />} title="No bills" description="Nothing matches this filter." actionLabel="New bill" onAction={openCreate} />
+            ) : (
+              <>
+              <MobileList>
+                {filteredBills.map((bill) => {
+                  const s = statusStyle(BILL_STATUS_STYLES, bill.status);
+                  return (
+                    <MobileRow
+                      key={bill.id}
+                      title={bill.title}
+                      aside={<span className="font-semibold text-fg tabular">{formatCurrency(bill.amount)}</span>}
+                      subtitle={`Due ${formatDayLabel(bill.dueDate)} · ${capitalize(bill.category)}${bill.isRecurring ? ` · ${capitalize(bill.frequency || 'recurring')}` : ''}`}
+                      meta={
+                        <>
+                          <Badge variant={s.variant} dot>
+                            {s.label}
+                          </Badge>
+                          {bill.status !== 'paid' && (
+                            <Button variant="secondary" size="xs" className="ml-auto" onClick={() => markPaid.mutateAsync(bill.id)} leftIcon={<Check className="size-3.5" />}>
+                              Mark paid
+                            </Button>
                           )}
-                          <h3 className="text-xs sm:text-sm font-semibold text-[#111111]">{bill.title}</h3>
+                        </>
+                      }
+                      actions={
+                        <RowActions
+                          label={`Actions for ${bill.title}`}
+                          items={[{ id: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, onClick: () => setDeleting({ kind: 'bill', id: bill.id }) }]}
+                        />
+                      }
+                    />
+                  );
+                })}
+              </MobileList>
+              <DesktopOnly>
+              <Table>
+                <THead>
+                  <tr>
+                    <TH>Bill</TH>
+                    <TH className="text-right">Amount</TH>
+                    <TH>Due</TH>
+                    <TH>Status</TH>
+                    <TH className="hidden lg:table-cell">Method</TH>
+                    <TH className="w-36">
+                      <span className="sr-only">Actions</span>
+                    </TH>
+                  </tr>
+                </THead>
+                <TBody>
+                  {filteredBills.map((bill) => {
+                    const s = statusStyle(BILL_STATUS_STYLES, bill.status);
+                    return (
+                      <TR key={bill.id}>
+                        <TD className="w-full max-w-0">
+                          <p className="font-medium truncate">{bill.title}</p>
+                          <p className="flex items-center gap-1.5 text-xs text-fg-subtle mt-0.5">
+                            {capitalize(bill.category)}
+                            {bill.isRecurring && (
+                              <span className="inline-flex items-center gap-1">
+                                · <Repeat className="size-3" /> {capitalize(bill.frequency || 'recurring')}
+                              </span>
+                            )}
+                          </p>
+                        </TD>
+                        <TD className="text-right font-medium tabular whitespace-nowrap">{formatCurrency(bill.amount)}</TD>
+                        <TD className="text-fg-muted whitespace-nowrap">{formatDayLabel(bill.dueDate)}</TD>
+                        <TD>
+                          <Badge variant={s.variant} dot>
+                            {s.label}
+                          </Badge>
+                        </TD>
+                        <TD className="hidden lg:table-cell text-fg-muted">
+                          {bill.paymentMethod ? (
+                            <span className="inline-flex items-center gap-1.5">
+                              <CreditCard className="size-3.5 text-fg-faint" />
+                              {bill.paymentMethod}
+                            </span>
+                          ) : (
+                            '—'
+                          )}
+                        </TD>
+                        <TD>
+                          <div className="flex items-center justify-end gap-1">
+                            {bill.status !== 'paid' && (
+                              <Button variant="secondary" size="xs" onClick={() => markPaid.mutateAsync(bill.id)} leftIcon={<Check className="size-3.5" />}>
+                                Mark paid
+                              </Button>
+                            )}
+                            <RowActions
+                              label={`Actions for ${bill.title}`}
+                              items={[
+                                {
+                                  id: 'delete',
+                                  label: 'Delete',
+                                  icon: <Trash2 />,
+                                  destructive: true,
+                                  onClick: () => setDeleting({ kind: 'bill', id: bill.id }),
+                                },
+                              ]}
+                            />
+                          </div>
+                        </TD>
+                      </TR>
+                    );
+                  })}
+                </TBody>
+              </Table>
+              </DesktopOnly>
+              </>
+            )}
+          </Card>
+        </>
+      ) : (
+        <Card flush className="overflow-hidden">
+          {plans.length === 0 ? (
+            <EmptyState bare icon={<CreditCard />} title="No payment plans" description="Instalment and EMI plans will appear here." />
+          ) : (
+            <>
+            <MobileList>
+              {plans.map((plan) => {
+                const pct = (plan.completedInstallments / plan.totalInstallments) * 100;
+                const done = plan.status === 'completed';
+                return (
+                  <MobileRow
+                    key={plan.id}
+                    title={plan.title}
+                    aside={<span className="font-semibold text-fg tabular">{formatCurrency(plan.remainingAmount)}</span>}
+                    subtitle={
+                      done
+                        ? 'Fully paid'
+                        : `${formatCurrency(plan.installmentAmount)} / ${plan.frequency} · next ${formatDate(plan.nextPaymentDate)}`
+                    }
+                    meta={
+                      <>
+                        <div className="flex items-center gap-2 w-full">
+                          <Progress value={pct} tone={done ? 'success' : 'accent'} label={`${plan.title} progress`} />
+                          <span className="text-xs text-fg-subtle tabular whitespace-nowrap">
+                            {plan.completedInstallments}/{plan.totalInstallments}
+                          </span>
                         </div>
-                        <div className="flex items-center gap-3 text-[11px] text-[#8A8A8A]">
-                          <span className="font-bold text-[#111111] text-sm">₹{bill.amount.toLocaleString()}</span>
-                          <span>•</span>
-                          <span>Due {formatDate(bill.dueDate)}</span>
-                          {bill.paymentMethod && <><span>•</span><span className="flex items-center gap-1"><CreditCard className="w-3 h-3" />{bill.paymentMethod}</span></>}
-                        </div>
-                        {bill.notes && <p className="text-[11px] text-[#8A8A8A]">{bill.notes}</p>}
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        {bill.status !== 'paid' && (
-                          <Button variant="outline" size="sm" onClick={() => markPaid.mutateAsync(bill.id)} className="text-[11px] px-2 py-1">
-                            Mark Paid
+                        {!done && (
+                          <Button variant="secondary" size="xs" className="mt-1" onClick={() => recordPayment.mutateAsync(plan.id)}>
+                            Record payment
                           </Button>
                         )}
-                        <Button variant="ghost" size="sm" onClick={() => remove.mutateAsync(bill.id)} className="p-1.5 text-[#8A8A8A] hover:text-red-600">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </Card>
+                      </>
+                    }
+                    actions={
+                      <RowActions
+                        label={`Actions for ${plan.title}`}
+                        items={[{ id: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, onClick: () => setDeleting({ kind: 'plan', id: plan.id }) }]}
+                      />
+                    }
+                  />
                 );
               })}
-            </div>
-          )}
-        </>
-      )}
-
-      {activeTab === 'plans' && (
-        <div className="space-y-3">
-          {plans.length === 0 ? (
-            <EmptyState title="No payment plans" description="Add installment or recurring payment plans to track here." />
-          ) : (
-            plans.map((plan) => {
-              const progress = (plan.completedInstallments / plan.totalInstallments) * 100;
-              return (
-                <Card key={plan.id}>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0 space-y-3">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-xs sm:text-sm font-semibold text-[#111111]">{plan.title}</h3>
-                        <Badge className={plan.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-blue-50 text-blue-700 border border-blue-100'} size="sm">
-                          {plan.status === 'completed' ? 'Completed' : 'Active'}
-                        </Badge>
-                      </div>
-
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
-                        <div>
-                          <div className="text-[#8A8A8A]">Total Amount</div>
-                          <div className="font-semibold text-[#111111]">₹{plan.totalAmount.toLocaleString()}</div>
+            </MobileList>
+            <DesktopOnly>
+            <Table>
+              <THead>
+                <tr>
+                  <TH>Plan</TH>
+                  <TH className="hidden md:table-cell text-right">Instalment</TH>
+                  <TH className="text-right">Remaining</TH>
+                  <TH className="hidden sm:table-cell">Next payment</TH>
+                  <TH className="w-48">Progress</TH>
+                  <TH className="w-44">
+                    <span className="sr-only">Actions</span>
+                  </TH>
+                </tr>
+              </THead>
+              <TBody>
+                {plans.map((plan) => {
+                  const pct = (plan.completedInstallments / plan.totalInstallments) * 100;
+                  const done = plan.status === 'completed';
+                  return (
+                    <TR key={plan.id}>
+                      <TD>
+                        <p className="font-medium">{plan.title}</p>
+                        <p className="text-xs text-fg-subtle mt-0.5">Total {formatCurrency(plan.totalAmount)}</p>
+                      </TD>
+                      <TD className="hidden md:table-cell text-right tabular whitespace-nowrap text-fg-muted">
+                        {formatCurrency(plan.installmentAmount)} / {plan.frequency}
+                      </TD>
+                      <TD className="text-right font-medium tabular whitespace-nowrap">{formatCurrency(plan.remainingAmount)}</TD>
+                      <TD className="hidden sm:table-cell text-fg-muted whitespace-nowrap">{done ? '—' : formatDate(plan.nextPaymentDate)}</TD>
+                      <TD>
+                        <div className="flex items-center gap-2">
+                          <Progress value={pct} tone={done ? 'success' : 'accent'} label={`${plan.title} progress`} />
+                          <span className="text-xs text-fg-subtle tabular whitespace-nowrap">
+                            {plan.completedInstallments}/{plan.totalInstallments}
+                          </span>
                         </div>
-                        <div>
-                          <div className="text-[#8A8A8A]">Installment</div>
-                          <div className="font-semibold text-[#111111]">₹{plan.installmentAmount.toLocaleString()} / {plan.frequency}</div>
-                        </div>
-                        <div>
-                          <div className="text-[#8A8A8A]">Remaining</div>
-                          <div className="font-semibold text-[#111111]">₹{plan.remainingAmount.toLocaleString()}</div>
-                        </div>
-                        <div>
-                          <div className="text-[#8A8A8A]">Next Due</div>
-                          <div className="font-semibold text-[#111111]">{formatDate(plan.nextPaymentDate)}</div>
-                        </div>
-                      </div>
-
-                      {/* Progress Bar */}
-                      <div className="space-y-1">
-                        <div className="flex justify-between text-[11px] text-[#8A8A8A]">
-                          <span>{plan.completedInstallments} of {plan.totalInstallments} installments paid</span>
-                          <span>{Math.round(progress)}%</span>
-                        </div>
-                        <div className="h-1.5 bg-[#F7F7F7] rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-black rounded-full transition-all"
-                            style={{ width: `${progress}%` }}
+                      </TD>
+                      <TD>
+                        <div className="flex items-center justify-end gap-1">
+                          {!done ? (
+                            <Button variant="secondary" size="xs" onClick={() => recordPayment.mutateAsync(plan.id)}>
+                              Record payment
+                            </Button>
+                          ) : (
+                            <Badge variant="success">Completed</Badge>
+                          )}
+                          <RowActions
+                            label={`Actions for ${plan.title}`}
+                            items={[
+                              {
+                                id: 'delete',
+                                label: 'Delete',
+                                icon: <Trash2 />,
+                                destructive: true,
+                                onClick: () => setDeleting({ kind: 'plan', id: plan.id }),
+                              },
+                            ]}
                           />
                         </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-1 shrink-0">
-                      {plan.status === 'active' && (
-                        <Button variant="outline" size="sm" onClick={() => recordPayment.mutateAsync(plan.id)} className="text-[11px]">
-                          Record Payment
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="sm" onClick={() => removePlan.mutateAsync(plan.id)} className="p-1.5 text-[#8A8A8A] hover:text-red-600">
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              );
-            })
+                      </TD>
+                    </TR>
+                  );
+                })}
+              </TBody>
+            </Table>
+            </DesktopOnly>
+            </>
           )}
-        </div>
+        </Card>
       )}
 
-      {/* Add Bill Modal */}
       <Modal
-        isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add Bill" maxWidth="md"
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="New bill"
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" size="sm" onClick={handleBillSubmit} isLoading={create.isPending}>Add Bill</Button>
+            <Button variant="secondary" size="sm" onClick={() => setIsModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" type="submit" form="bill-form" isLoading={create.isPending}>
+              Create bill
+            </Button>
           </>
         }
       >
-        <form onSubmit={handleBillSubmit} className="space-y-4">
-          <Input label="Bill Name" placeholder="e.g. Electricity Bill, Netflix..." value={billTitle} onChange={(e) => setBillTitle(e.target.value)} required />
+        <form id="bill-form" onSubmit={handleBillSubmit} className="space-y-4">
+          <Input label="Name" placeholder="e.g. Electricity" value={billTitle} onChange={(e) => setBillTitle(e.target.value)} required autoFocus />
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Amount (₹)" type="number" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} required />
-            <Input label="Due Date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
+            <Input label="Amount (₹)" type="number" min="0" placeholder="0" value={amount} onChange={(e) => setAmount(e.target.value)} required />
+            <Input label="Due date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
           </div>
           <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Category" value={category} onChange={(e) => setCategory(e.target.value)}
-              options={[
-                { value: 'utilities', label: 'Utilities' },
-                { value: 'entertainment', label: 'Entertainment' },
-                { value: 'education', label: 'Education' },
-                { value: 'rent', label: 'Rent / Hostel' },
-                { value: 'phone', label: 'Phone' },
-                { value: 'internet', label: 'Internet' },
-                { value: 'other', label: 'Other' },
-              ]}
-            />
-            <Input label="Payment Method" placeholder="UPI, Credit Card..." value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} />
+            <Select label="Category" value={category} onChange={(e) => setCategory(e.target.value)} options={BILL_CATEGORIES} />
+            <Input label="Payment method" placeholder="UPI, card…" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} />
           </div>
-          <div className="flex items-center gap-2">
-            <input type="checkbox" id="recurring" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} className="rounded" />
-            <label htmlFor="recurring" className="text-xs text-[#666666]">Recurring bill</label>
-          </div>
+          <Checkbox
+            label="Recurring bill"
+            description="Repeats on a fixed schedule"
+            checked={isRecurring}
+            onChange={(e) => setIsRecurring(e.target.checked)}
+          />
           {isRecurring && (
             <Select
-              label="Frequency" value={frequency} onChange={(e) => setFrequency(e.target.value)}
+              label="Frequency"
+              value={frequency}
+              onChange={(e) => setFrequency(e.target.value)}
               options={[
                 { value: 'monthly', label: 'Monthly' },
                 { value: 'quarterly', label: 'Quarterly' },
@@ -285,9 +414,22 @@ export const BillsPage: React.FC = () => {
               ]}
             />
           )}
-          <Input label="Notes (Optional)" placeholder="Any additional details..." value={notes} onChange={(e) => setNotes(e.target.value)} />
+          <Input label="Notes" placeholder="Optional" value={notes} onChange={(e) => setNotes(e.target.value)} />
         </form>
       </Modal>
-    </div>
+
+      <ConfirmDialog
+        isOpen={!!deleting}
+        onClose={() => setDeleting(null)}
+        onConfirm={async () => {
+          if (!deleting) return;
+          if (deleting.kind === 'bill') await remove.mutateAsync(deleting.id);
+          else await removePlan.mutateAsync(deleting.id);
+          setDeleting(null);
+        }}
+        title={deleting?.kind === 'plan' ? 'Delete payment plan?' : 'Delete bill?'}
+        message="This record will be permanently removed."
+      />
+    </Page>
   );
 };

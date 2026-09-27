@@ -1,5 +1,6 @@
 import React from 'react';
 import { Outlet, Navigate, useLocation } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { MobileNav } from './MobileNav';
@@ -15,48 +16,40 @@ export const AppLayout: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-white text-xs text-[#8A8A8A]">
-        Loading AgentOS...
+      <div className="flex items-center justify-center min-h-screen gap-2 text-sm text-fg-subtle">
+        <Loader2 className="size-4 animate-spin" />
+        Loading workspace…
       </div>
     );
   }
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
   const isChatRoute = location.pathname.startsWith('/chat');
 
   return (
-    <div className="min-h-screen bg-white text-[#111111] flex flex-col md:flex-row antialiased selection:bg-neutral-900 selection:text-white">
-      {/* Desktop Sidebar */}
+    <div className="min-h-screen flex bg-canvas text-fg">
       <Sidebar />
-
-      {/* Mobile Drawer Navigation (Menu drawer) */}
       <MobileNav />
 
-      {/* Main Container */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen">
         <Header />
         <main
           className={cn(
-            'flex-1 w-full mx-auto overflow-x-hidden',
+            'flex-1 w-full min-w-0',
             isChatRoute
-              ? 'p-0 md:p-4 lg:p-6 max-w-7xl pb-16 md:pb-6'
-              : 'p-3.5 sm:p-6 lg:p-8 max-w-7xl pb-20 md:pb-8'
+              ? 'flex flex-col'
+              : 'mx-auto max-w-screen-2xl px-4 sm:px-6 lg:px-8 py-5 sm:py-6 lg:py-8 pb-24 md:pb-10'
           )}
         >
           <Outlet />
         </main>
       </div>
 
-      {/* Mobile Native Bottom Navigation Bar */}
       <BottomNav />
-
-      {/* Global Command Menu Cmd+K */}
       <CommandMenu />
-
-      {/* Toast Notifications */}
       <ToastContainer />
     </div>
   );

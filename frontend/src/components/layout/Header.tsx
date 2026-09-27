@@ -1,106 +1,126 @@
 import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { Menu, Search, LogOut, Settings as SettingsIcon } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, Search, LogOut, Settings, ChevronRight, Inbox, MessageSquare, User } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useAuthStore } from '../../stores/authStore';
+import { useApprovals } from '../../hooks/useApprovals';
+import { findNavContext } from '../../config/navigation';
 import { Avatar } from '../ui/Avatar';
 import { Dropdown } from '../ui/Dropdown';
+import { Button } from '../ui/Button';
+import { Tooltip } from '../ui/Tooltip';
 
 export const Header: React.FC = () => {
   const { setMobileDrawerOpen, setCommandMenuOpen } = useUIStore();
   const { user, logout } = useAuthStore();
+  const { approvals } = useApprovals();
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Dynamic route titles
-  const getPageTitle = (path: string) => {
-    if (path.startsWith('/dashboard')) return 'Dashboard';
-    if (path.startsWith('/chat')) return 'AI Assistant';
-    if (path.startsWith('/tasks')) return 'Tasks & Assignments';
-    if (path.startsWith('/calendar')) return 'Calendar & Schedule';
-    if (path.startsWith('/study-plan')) return 'Study Plan';
-    if (path.startsWith('/reminders')) return 'Reminders';
-    if (path.startsWith('/documents')) return 'Document Library';
-    if (path.startsWith('/bills')) return 'Bills & Payments';
-    if (path.startsWith('/expenses')) return 'Expenses & Budget';
-    if (path.startsWith('/goals')) return 'Personal Goals';
-    if (path.startsWith('/agent-runs')) return 'Agent Execution Log';
-    if (path.startsWith('/approvals')) return 'Pending Approvals';
-    if (path.startsWith('/settings')) return 'Settings';
-    return 'AgentOS';
-  };
-
-  const dropdownItems = [
-    {
-      id: 'profile',
-      label: 'Profile & Settings',
-      icon: <SettingsIcon className="w-3.5 h-3.5" />,
-      onClick: () => navigate('/settings/profile'),
-    },
-    {
-      id: 'logout',
-      label: 'Sign out',
-      icon: <LogOut className="w-3.5 h-3.5" />,
-      onClick: () => {
-        logout();
-        navigate('/login');
-      },
-      destructive: true,
-    },
-  ];
+  const { group, item } = findNavContext(location.pathname);
+  const pendingCount = approvals.filter((a) => a.status === 'pending').length;
+  const onAssistant = location.pathname.startsWith('/chat');
+  const displayName = user?.name || 'Student';
 
   return (
-    <header className="sticky top-0 z-20 h-14 bg-white border-b border-[#EAEAEA] px-4 sm:px-6 flex items-center justify-between">
-      {/* Mobile Drawer Trigger & Page Title */}
-      <div className="flex items-center gap-3">
+    <header className="sticky top-0 z-20 h-14 shrink-0 bg-surface/90 backdrop-blur border-b border-line px-4 sm:px-6 flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2 min-w-0">
         <button
           onClick={() => setMobileDrawerOpen(true)}
-          className="md:hidden p-1.5 rounded-md text-[#666666] hover:text-[#111111] hover:bg-[#F7F7F7]"
-          aria-label="Open navigation menu"
+          className="md:hidden -ml-1.5 p-1.5 rounded-md text-fg-muted hover:text-fg hover:bg-hover"
+          aria-label="Open navigation"
         >
-          <Menu className="w-5 h-5" />
+          <Menu className="size-5" />
         </button>
-        <h1 className="text-sm font-semibold text-[#111111] tracking-tight">
-          {getPageTitle(location.pathname)}
-        </h1>
+
+        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm min-w-0">
+          {group?.label && (
+            <>
+              <span className="hidden sm:inline text-fg-subtle">{group.label}</span>
+              <ChevronRight className="hidden sm:inline size-3.5 text-fg-faint shrink-0" />
+            </>
+          )}
+          {item && (
+            <Link to={item.path} className="font-medium text-fg truncate hover:text-fg-muted">
+              {item.label}
+            </Link>
+          )}
+        </nav>
       </div>
 
-      {/* Right Controls: Quick Search & Profile */}
-      <div className="flex items-center gap-3">
-        {/* Quick Search Palette Trigger */}
+      <div className="flex items-center gap-1.5 sm:gap-2">
         <button
           onClick={() => setCommandMenuOpen(true)}
-          className="hidden sm:flex items-center gap-2 px-3 py-1.5 text-xs text-[#8A8A8A] bg-[#F7F7F7] border border-[#EAEAEA] rounded-md hover:bg-[#F3F3F3] hover:text-[#111111] transition-colors cursor-pointer"
+          className="hidden lg:flex items-center gap-2 h-8 w-64 px-2.5 text-sm text-fg-faint bg-subtle border border-line rounded-md hover:border-line-strong transition-colors"
         >
-          <Search className="w-3.5 h-3.5" />
-          <span>Search or commands...</span>
-          <kbd className="px-1.5 py-0.2 text-[10px] font-mono bg-white border border-[#EAEAEA] rounded text-[#666666]">
-            ⌘K
-          </kbd>
+          <Search className="size-4" />
+          <span className="flex-1 text-left">Search or jump to…</span>
+          <kbd className="font-sans text-xs text-fg-subtle bg-surface border border-line rounded px-1.5">Ctrl K</kbd>
         </button>
-
-        {/* Small Search Icon for Mobile */}
-        <button
+        <Button
+          variant="ghost"
+          size="sm"
+          iconOnly
+          className="lg:hidden"
           onClick={() => setCommandMenuOpen(true)}
-          className="sm:hidden p-1.5 rounded-md text-[#666666] hover:bg-[#F7F7F7]"
           aria-label="Search"
         >
-          <Search className="w-4 h-4" />
-        </button>
+          <Search className="size-4" />
+        </Button>
 
-        <div className="h-4 w-px bg-[#EAEAEA]" />
+        <Tooltip content={pendingCount ? `${pendingCount} awaiting review` : 'No pending approvals'} position="bottom">
+          <Link
+            to="/approvals"
+            className="relative inline-flex items-center justify-center size-8 rounded-md text-fg-muted hover:bg-hover hover:text-fg transition-colors"
+            aria-label={`Approvals, ${pendingCount} pending`}
+          >
+            <Inbox className="size-4" />
+            {pendingCount > 0 && (
+              <span className="absolute top-1 right-1 size-2 rounded-full bg-accent ring-2 ring-surface" />
+            )}
+          </Link>
+        </Tooltip>
 
-        {/* User Dropdown */}
+        {!onAssistant && (
+          <Button
+            size="sm"
+            className="hidden sm:inline-flex"
+            leftIcon={<MessageSquare className="size-4" />}
+            onClick={() => navigate('/chat')}
+          >
+            Ask assistant
+          </Button>
+        )}
+
+        <div className="w-px h-5 bg-line mx-1 hidden sm:block" />
+
         <Dropdown
-          trigger={
-            <div className="flex items-center gap-2 cursor-pointer p-0.5 rounded-md hover:bg-[#F7F7F7]">
-              <Avatar name={user?.name || 'Alex Rivera'} src={user?.avatarUrl} size="sm" />
-              <span className="hidden md:inline-block text-xs font-medium text-[#111111]">
-                {user?.name || 'Alex Rivera'}
-              </span>
+          header={
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-fg truncate">{displayName}</p>
+              <p className="text-xs text-fg-subtle truncate">{user?.email}</p>
             </div>
           }
-          items={dropdownItems}
+          trigger={
+            <button className="flex items-center rounded-full focus-visible:outline-none focus-visible:shadow-focus" aria-label="Account menu">
+              <Avatar name={displayName} src={user?.avatarUrl} size="sm" />
+            </button>
+          }
+          items={[
+            { id: 'profile', label: 'Profile', icon: <User />, onClick: () => navigate('/settings/profile') },
+            { id: 'settings', label: 'Preferences', icon: <Settings />, onClick: () => navigate('/settings/preferences') },
+            {
+              id: 'logout',
+              label: 'Sign out',
+              icon: <LogOut />,
+              destructive: true,
+              separated: true,
+              onClick: async () => {
+                await logout();
+                navigate('/login');
+              },
+            },
+          ]}
         />
       </div>
     </header>
