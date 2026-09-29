@@ -1,6 +1,24 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { approvalService } from '../services/approvalService';
+import { errorMessage } from '../services/api';
 import { toast } from '../stores/notificationStore';
+
+/** An approved action can land in any module, so refresh everything it might have changed. */
+export function invalidateAfterApproval(queryClient: QueryClient) {
+  for (const key of [
+    'approvals',
+    'agentRuns',
+    'tasks',
+    'reminders',
+    'events',
+    'studySessions',
+    'expenses',
+    'bills',
+    'budgets',
+  ]) {
+    queryClient.invalidateQueries({ queryKey: [key] });
+  }
+}
 
 export function useApprovals() {
   const queryClient = useQueryClient();
@@ -14,15 +32,17 @@ export function useApprovals() {
     mutationFn: ({ id, decision }: { id: string; decision: 'approved' | 'rejected' }) =>
       approvalService.respondToApproval(id, decision),
     onSuccess: (action, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['approvals'] });
-      queryClient.invalidateQueries({ queryKey: ['reminders'] });
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      invalidateAfterApproval(queryClient);
+      queryClient.invalidateQueries({ queryKey: ['chatMessages'] });
       toast.success(
         variables.decision === 'approved' ? 'Action Approved' : 'Action Rejected',
         `"${action.title}" was ${variables.decision}.`
       );
     },
-    onError: () => toast.error('Failed to respond to approval request'),
+    onError: (err) => {
+      queryClient.invalidateQueries({ queryKey: ['approvals'] });
+      toast.error('Failed to respond to approval request', errorMessage(err));
+    },
   });
 
   return {

@@ -1,38 +1,53 @@
 import React from 'react';
 import { cn } from '../../utils/cn';
 
+export type BadgeVariant = 'neutral' | 'success' | 'warning' | 'error' | 'info' | 'outline' | 'black';
+
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: 'neutral' | 'success' | 'warning' | 'error' | 'info' | 'outline' | 'black';
+  variant?: BadgeVariant;
   size?: 'sm' | 'md';
+  /** Leading status dot. */
+  dot?: boolean;
 }
+
+const VARIANTS: Record<BadgeVariant, string> = {
+  neutral: 'bg-subtle text-fg-muted border-line',
+  outline: 'bg-surface text-fg-muted border-line',
+  black: 'bg-fg text-white border-fg',
+  success: 'bg-success-subtle text-success border-success-line',
+  warning: 'bg-warning-subtle text-warning border-warning-line',
+  error: 'bg-danger-subtle text-danger border-danger-line',
+  info: 'bg-accent-subtle text-accent-fg border-accent-line',
+};
+
+const DOTS: Record<BadgeVariant, string> = {
+  neutral: 'bg-fg-faint',
+  outline: 'bg-fg-faint',
+  black: 'bg-white',
+  success: 'bg-success',
+  warning: 'bg-warning',
+  error: 'bg-danger',
+  info: 'bg-accent',
+};
 
 export const Badge: React.FC<BadgeProps> = ({
   children,
   className,
   variant = 'neutral',
   size = 'sm',
+  dot = false,
   ...props
-}) => {
-  const baseStyles = 'inline-flex items-center font-medium rounded-md tracking-tight border';
-
-  const variants = {
-    neutral: 'bg-[#F7F7F7] text-[#666666] border-[#EAEAEA]',
-    black: 'bg-black text-white border-black',
-    success: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    warning: 'bg-amber-50 text-amber-700 border-amber-200',
-    error: 'bg-rose-50 text-rose-700 border-rose-200',
-    info: 'bg-sky-50 text-sky-700 border-sky-200',
-    outline: 'bg-transparent text-[#111111] border-[#EAEAEA]',
-  };
-
-  const sizes = {
-    sm: 'text-[11px] px-2 py-0.5 gap-1',
-    md: 'text-xs px-2.5 py-1 gap-1.5',
-  };
-
-  return (
-    <span className={cn(baseStyles, variants[variant], sizes[size], className)} {...props}>
-      {children}
-    </span>
-  );
-};
+}) => (
+  <span
+    className={cn(
+      'inline-flex items-center font-medium border rounded-md whitespace-nowrap',
+      size === 'sm' ? 'text-xs h-5 px-1.5 gap-1' : 'text-xs h-6 px-2 gap-1.5',
+      VARIANTS[variant],
+      className
+    )}
+    {...props}
+  >
+    {dot && <span className={cn('size-1.5 rounded-full', DOTS[variant])} />}
+    {children}
+  </span>
+);

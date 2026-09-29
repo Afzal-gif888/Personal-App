@@ -1,113 +1,137 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  Search,
-  LayoutDashboard,
-  MessageSquare,
-  CheckSquare,
-  CalendarDays,
-  BookOpen,
-  Bell,
-  FileText,
-  Activity,
-  ShieldCheck,
-  User,
-  Plus,
-  Sparkles,
-  Receipt,
-  Wallet,
-  Target,
-} from 'lucide-react';
+import { Search, Plus, MessageSquare, CornerDownLeft } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
+import { ALL_NAV_ITEMS } from '../../config/navigation';
+import { cn } from '../../utils/cn';
+
+interface CommandItem {
+  id: string;
+  label: string;
+  hint?: string;
+  group: 'Actions' | 'Go to';
+  icon: React.ReactNode;
+  path: string;
+}
+
+const COMMANDS: CommandItem[] = [
+  { id: 'ask', label: 'Ask the assistant', hint: 'Start a request', group: 'Actions', icon: <MessageSquare />, path: '/chat' },
+  { id: 'new-task', label: 'New task', group: 'Actions', icon: <Plus />, path: '/tasks' },
+  { id: 'new-reminder', label: 'New reminder', group: 'Actions', icon: <Plus />, path: '/reminders' },
+  { id: 'new-expense', label: 'Log an expense', group: 'Actions', icon: <Plus />, path: '/expenses' },
+  ...ALL_NAV_ITEMS.map<CommandItem>((item) => {
+    const Icon = item.icon;
+    return { id: `nav-${item.id}`, label: item.label, hint: item.description, group: 'Go to', icon: <Icon />, path: item.path };
+  }),
+];
 
 export const CommandMenu: React.FC = () => {
   const { commandMenuOpen, setCommandMenuOpen } = useUIStore();
   const [query, setQuery] = useState('');
+  const [activeIndex, setActiveIndex] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
-        setCommandMenuOpen(!commandMenuOpen);
-      }
-      if (e.key === 'Escape' && commandMenuOpen) {
-        setCommandMenuOpen(false);
+        setCommandMenuOpen(!useUIStore.getState().commandMenuOpen);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [commandMenuOpen, setCommandMenuOpen]);
+  }, [setCommandMenuOpen]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return COMMANDS;
+    return COMMANDS.filter((c) => c.label.toLowerCase().includes(q) || c.hint?.toLowerCase().includes(q));
+  }, [query]);
 
   if (!commandMenuOpen) return null;
 
-  const actions = [
-    { id: 'nav-dashboard', label: 'Go to Dashboard', category: 'Navigation', icon: <LayoutDashboard className="w-4 h-4" />, path: '/dashboard' },
-    { id: 'nav-chat', label: 'Go to AI Assistant', category: 'Navigation', icon: <MessageSquare className="w-4 h-4" />, path: '/chat' },
-    { id: 'nav-tasks', label: 'Go to Tasks', category: 'Navigation', icon: <CheckSquare className="w-4 h-4" />, path: '/tasks' },
-    { id: 'nav-calendar', label: 'Go to Calendar', category: 'Navigation', icon: <CalendarDays className="w-4 h-4" />, path: '/calendar' },
-    { id: 'nav-plan', label: 'Go to Study Plan', category: 'Navigation', icon: <BookOpen className="w-4 h-4" />, path: '/study-plan' },
-    { id: 'nav-reminders', label: 'Go to Reminders', category: 'Navigation', icon: <Bell className="w-4 h-4" />, path: '/reminders' },
-    { id: 'nav-docs', label: 'Go to Documents', category: 'Navigation', icon: <FileText className="w-4 h-4" />, path: '/documents' },
-    { id: 'nav-bills', label: 'Go to Bills & Payments', category: 'Navigation', icon: <Receipt className="w-4 h-4" />, path: '/bills' },
-    { id: 'nav-expenses', label: 'Go to Expenses', category: 'Navigation', icon: <Wallet className="w-4 h-4" />, path: '/expenses' },
-    { id: 'nav-goals', label: 'Go to Goals', category: 'Navigation', icon: <Target className="w-4 h-4" />, path: '/goals' },
-    { id: 'nav-agent-runs', label: 'Go to Agent Runs', category: 'Navigation', icon: <Activity className="w-4 h-4" />, path: '/agent-runs' },
-    { id: 'nav-approvals', label: 'Go to Approvals', category: 'Navigation', icon: <ShieldCheck className="w-4 h-4" />, path: '/approvals' },
-    { id: 'nav-settings', label: 'Go to Profile Settings', category: 'Navigation', icon: <User className="w-4 h-4" />, path: '/settings/profile' },
-    { id: 'action-ask-ai', label: 'Ask AI Assistant...', category: 'Quick Action', icon: <Sparkles className="w-4 h-4 text-emerald-600" />, path: '/chat' },
-    { id: 'action-add-task', label: 'Create New Task', category: 'Quick Action', icon: <Plus className="w-4 h-4" />, path: '/tasks' },
-    { id: 'action-add-reminder', label: 'Create New Reminder', category: 'Quick Action', icon: <Plus className="w-4 h-4" />, path: '/reminders' },
-    { id: 'action-add-expense', label: 'Add Expense', category: 'Quick Action', icon: <Plus className="w-4 h-4" />, path: '/expenses' },
-  ];
-
-  const filtered = actions.filter((a) =>
-    a.label.toLowerCase().includes(query.toLowerCase()) || a.category.toLowerCase().includes(query.toLowerCase())
-  );
-
-  const handleSelect = (path: string) => {
-    navigate(path);
+  const close = () => {
     setCommandMenuOpen(false);
     setQuery('');
+    setActiveIndex(0);
   };
 
+  const run = (item: CommandItem) => {
+    navigate(item.path);
+    close();
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') close();
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    }
+    if (e.key === 'Enter' && filtered[activeIndex]) run(filtered[activeIndex]);
+  };
+
+  const groups = (['Actions', 'Go to'] as const)
+    .map((g) => ({ name: g, items: filtered.filter((c) => c.group === g) }))
+    .filter((g) => g.items.length > 0);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4 bg-black/40 backdrop-blur-xs">
-      <div className="fixed inset-0" onClick={() => setCommandMenuOpen(false)} />
-      <div className="relative w-full max-w-lg rounded-lg border border-[#EAEAEA] bg-white shadow-xl overflow-hidden z-10 text-left">
-        <div className="flex items-center px-3.5 border-b border-[#EAEAEA]">
-          <Search className="w-4 h-4 text-[#8A8A8A] shrink-0 mr-2" />
+    <div className="fixed inset-0 z-50 flex items-start justify-center pt-[12vh] px-4" onKeyDown={onKeyDown}>
+      <div className="absolute inset-0 bg-fg/40 animate-fade-in" onClick={close} aria-hidden="true" />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command menu"
+        className="relative w-full max-w-xl rounded-xl border border-line bg-surface shadow-lg overflow-hidden animate-pop-in"
+      >
+        <div className="flex items-center gap-2.5 px-4 border-b border-line">
+          <Search className="size-4 text-fg-faint shrink-0" />
           <input
             type="text"
             autoFocus
-            placeholder="Type a command or search page..."
+            placeholder="Search pages and actions…"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            className="w-full h-11 bg-transparent text-xs sm:text-sm text-[#111111] placeholder:text-[#8A8A8A] focus:outline-none"
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActiveIndex(0);
+            }}
+            className="w-full h-12 bg-transparent text-sm text-fg placeholder:text-fg-faint focus:outline-none"
           />
-          <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono text-[#8A8A8A] bg-[#F7F7F7] border border-[#EAEAEA] rounded">
-            ESC
-          </kbd>
+          <kbd className="hidden sm:inline font-sans text-xs text-fg-subtle bg-subtle border border-line rounded px-1.5">Esc</kbd>
         </div>
 
-        <div className="max-h-72 overflow-y-auto p-1.5 space-y-1">
+        <div ref={listRef} className="max-h-[50vh] overflow-y-auto p-2">
           {filtered.length === 0 ? (
-            <div className="p-4 text-center text-xs text-[#8A8A8A]">No matching commands found.</div>
+            <p className="py-10 text-center text-sm text-fg-subtle">No results for “{query}”.</p>
           ) : (
-            filtered.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => handleSelect(item.path)}
-                className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-md hover:bg-[#F7F7F7] transition-colors text-left"
-              >
-                <div className="flex items-center gap-2.5 text-[#111111]">
-                  <span className="text-[#8A8A8A]">{item.icon}</span>
-                  <span className="font-medium">{item.label}</span>
-                </div>
-                <span className="text-[10px] text-[#8A8A8A] bg-[#F7F7F7] px-1.5 py-0.5 rounded border border-[#EAEAEA]">
-                  {item.category}
-                </span>
-              </button>
+            groups.map((group) => (
+              <div key={group.name} className="mb-1 last:mb-0">
+                <div className="px-2 pt-2 pb-1 text-xs font-medium text-fg-faint">{group.name}</div>
+                {group.items.map((item) => {
+                  const index = filtered.indexOf(item);
+                  const active = index === activeIndex;
+                  return (
+                    <button
+                      key={item.id}
+                      onMouseEnter={() => setActiveIndex(index)}
+                      onClick={() => run(item)}
+                      className={cn(
+                        'w-full flex items-center gap-3 h-10 px-2 rounded-md text-left transition-colors',
+                        active ? 'bg-hover' : 'hover:bg-subtle'
+                      )}
+                    >
+                      <span className="text-fg-subtle [&_svg]:size-4">{item.icon}</span>
+                      <span className="text-sm font-medium text-fg">{item.label}</span>
+                      {item.hint && <span className="text-sm text-fg-faint truncate">{item.hint}</span>}
+                      {active && <CornerDownLeft className="ml-auto size-3.5 text-fg-faint shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
             ))
           )}
         </div>

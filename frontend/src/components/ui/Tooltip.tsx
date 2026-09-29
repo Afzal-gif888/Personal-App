@@ -5,30 +5,34 @@ export interface TooltipProps {
   content: string;
   children: React.ReactNode;
   position?: 'top' | 'bottom' | 'left' | 'right';
+  disabled?: boolean;
 }
 
-export const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 'top' }) => {
-  const [isVisible, setIsVisible] = useState(false);
+const POSITIONS = {
+  top: 'bottom-full mb-1.5 left-1/2 -translate-x-1/2',
+  bottom: 'top-full mt-1.5 left-1/2 -translate-x-1/2',
+  left: 'right-full mr-2 top-1/2 -translate-y-1/2',
+  right: 'left-full ml-2 top-1/2 -translate-y-1/2',
+};
 
-  const positions = {
-    top: '-top-8 left-1/2 -translate-x-1/2',
-    bottom: '-bottom-8 left-1/2 -translate-x-1/2',
-    left: 'top-1/2 -left-2 -translate-x-full -translate-y-1/2',
-    right: 'top-1/2 -right-2 translate-x-full -translate-y-1/2',
-  };
+export const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 'top', disabled = false }) => {
+  const [isVisible, setIsVisible] = useState(false);
 
   return (
     <div
       className="relative inline-flex"
       onMouseEnter={() => setIsVisible(true)}
       onMouseLeave={() => setIsVisible(false)}
+      onFocus={() => setIsVisible(true)}
+      onBlur={() => setIsVisible(false)}
     >
       {children}
-      {isVisible && (
+      {isVisible && !disabled && (
         <div
+          role="tooltip"
           className={cn(
-            'absolute z-50 px-2 py-1 text-[11px] font-medium text-white bg-black rounded shadow-xs whitespace-nowrap pointer-events-none transition-opacity animate-in fade-in duration-100',
-            positions[position]
+            'absolute z-50 px-2 py-1 text-xs font-medium text-white bg-fg rounded-md shadow-sm whitespace-nowrap pointer-events-none animate-fade-in',
+            POSITIONS[position]
           )}
         >
           {content}

@@ -1,44 +1,137 @@
 @import "tailwindcss";
 
+/*
+ * It's Personal design tokens.
+ * Every colour used by components comes from here — never hard-code hex values in TSX.
+ * Tailwind exposes each token as a utility, e.g. --color-fg-muted → text-fg-muted.
+ */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Surfaces */
+  --color-canvas: #f7f8fa;
+  --color-surface: #ffffff;
+  --color-subtle: #f3f4f6;
+  --color-hover: #eceef2;
+
+  /* Borders */
+  --color-line: #e4e7ec;
+  --color-line-strong: #d0d5dd;
+
+  /* Text */
+  --color-fg: #101828;
+  --color-fg-muted: #475467;
+  --color-fg-subtle: #667085;
+  --color-fg-faint: #98a2b3;
+
+  /* Brand */
+  --color-accent: #2554d9;
+  --color-accent-hover: #1d44b8;
+  --color-accent-subtle: #eef3ff;
+  --color-accent-line: #c7d7fe;
+  --color-accent-fg: #1d44b8;
+
+  /* Status */
+  --color-success: #067647;
+  --color-success-subtle: #ecfdf3;
+  --color-success-line: #abefc6;
+  --color-warning: #b54708;
+  --color-warning-subtle: #fffaeb;
+  --color-warning-line: #fedf89;
+  --color-danger: #b42318;
+  --color-danger-solid: #d92d20;
+  --color-danger-subtle: #fef3f2;
+  --color-danger-line: #fecdca;
+
+  /* Type */
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+
+  /* Elevation */
+  --shadow-xs: 0 1px 2px 0 rgb(16 24 40 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(16 24 40 / 0.08), 0 1px 2px -1px rgb(16 24 40 / 0.06);
+  --shadow-lg: 0 12px 24px -6px rgb(16 24 40 / 0.12), 0 4px 8px -4px rgb(16 24 40 / 0.06);
+  --shadow-focus: 0 0 0 3px rgb(37 84 217 / 0.18);
+
+  --animate-fade-in: fade-in 120ms ease-out;
+  --animate-pop-in: pop-in 140ms ease-out;
+  --animate-slide-in-left: slide-in-left 180ms ease-out;
+  --animate-slide-up: slide-up 180ms ease-out;
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes pop-in {
+    from { opacity: 0; transform: translateY(4px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes slide-in-left {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(0); }
+  }
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+}
+
 @layer base {
-  :root {
-    --bg-main: #FFFFFF;
-    --text-primary: #111111;
-    --text-secondary: #666666;
-    --text-muted: #8A8A8A;
-    --border-color: #EAEAEA;
-    --bg-subtle: #F7F7F7;
-    --bg-hover: #F3F3F3;
-    --black-primary: #000000;
+  html {
+    -webkit-text-size-adjust: 100%;
   }
 
   body {
-    background-color: var(--bg-main);
-    color: var(--text-primary);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    margin: 0;
+    background-color: var(--color-canvas);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
+  }
+
+  ::selection {
+    background: var(--color-accent-subtle);
+    color: var(--color-accent-fg);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
   }
 }
 
-/* Custom Scrollbar for sleek aesthetic */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
 ::-webkit-scrollbar-track {
   background: transparent;
 }
-
 ::-webkit-scrollbar-thumb {
-  background: #D1D1D1;
+  background: var(--color-line-strong);
   border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
 }
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #A3A3A3;
+  background-color: var(--color-fg-faint);
 }

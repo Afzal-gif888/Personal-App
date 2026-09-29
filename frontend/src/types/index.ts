@@ -29,7 +29,7 @@ export interface StudySession {
   notes?: string;
 }
 
-export type ReminderRepeat = 'none' | 'daily' | 'weekly' | 'monthly';
+export type ReminderRepeat = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 export type ReminderStatus = 'upcoming' | 'today' | 'completed' | 'snoozed';
 
 export interface Reminder {
@@ -59,15 +59,25 @@ export interface Document {
   progress?: number; // 0 - 100 for uploading simulation
 }
 
-export type ActionCardType = 'create_reminder' | 'study_plan_generated' | 'task_created' | 'approval_required';
-export type ActionCardStatus = 'pending' | 'approved' | 'rejected' | 'executed';
+/** Agent write tools; each proposal becomes an approval card. */
+export type ActionCardType =
+  | 'create_task'
+  | 'complete_task'
+  | 'create_reminder'
+  | 'create_event'
+  | 'create_study_plan'
+  | 'log_expense'
+  | 'mark_bill_paid'
+  | 'set_budget';
+export type ActionCardStatus = 'pending' | 'approved' | 'rejected' | 'expired' | 'cancelled';
 
 export interface ActionCardData {
+  approvalId: string;
+  type: ActionCardType | string;
+  label: string; // e.g. "Create reminder"
   title: string;
-  subtitle?: string;
+  description?: string;
   details?: Record<string, any>;
-  targetId?: string;
-  type: ActionCardType;
   status: ActionCardStatus;
 }
 
@@ -83,33 +93,26 @@ export interface AgentStep {
 
 export interface Conversation {
   id: string;
-  user_id?: string;
   title: string;
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ChatMessageMetadata {
-  actionCard?: ActionCardData;
+  actions?: ActionCardData[];
   steps?: AgentStep[];
-  status?: 'success' | 'error' | 'loading';
+  status?: 'success' | 'error';
   error?: string;
-  toolCalls?: any[];
 }
 
 export interface ChatMessage {
   id: string;
-  conversation_id?: string;
+  conversationId: string;
   role: 'user' | 'assistant' | 'system';
-  sender?: 'user' | 'assistant' | 'system'; // backward compatible alias
   content: string;
-  text?: string; // backward compatible alias
-  created_at: string;
-  timestamp?: string; // backward compatible alias
+  createdAt: string;
+  agentRunId?: string | null;
   metadata?: ChatMessageMetadata;
-  actionCard?: ActionCardData; // backward compatible alias
-  steps?: AgentStep[]; // backward compatible alias
-  isError?: boolean;
 }
 
 export type AgentRunStatus = 'completed' | 'running' | 'failed' | 'awaiting_approval';
@@ -123,21 +126,24 @@ export interface AgentRun {
   completedAt?: string;
   duration: string;
   toolsUsed: string[];
-  steps: AgentStep[];
+  steps: AgentStep[]; // only filled in on the run detail
+  errorMessage?: string;
 }
 
-export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired' | 'cancelled';
 
 export interface ApprovalAction {
   id: string;
   runId?: string;
-  type: string; // e.g. "Create Reminder", "Schedule Study Session", "Delete Document"
+  action: string; // tool name, e.g. "create_reminder"
+  type: string; // label, e.g. "Create reminder"
   title: string;
   description: string;
   details: Record<string, any>;
   status: ApprovalStatus;
   requestedAt: string;
   respondedAt?: string;
+  expiresAt?: string;
 }
 
 export interface UserProfile {
@@ -222,7 +228,7 @@ export interface Expense {
 }
 
 export type GoalCategory = 'academic' | 'financial' | 'career' | 'personal' | 'general';
-export type GoalStatus = 'active' | 'completed' | 'on_hold';
+export type GoalStatus = 'active' | 'completed' | 'on_hold' | 'abandoned';
 export interface Goal {
   id: string;
   title: string;
@@ -231,4 +237,21 @@ export interface Goal {
   progress: number; // 0-100
   deadline?: string; // YYYY-MM-DD
   status: GoalStatus;
+}
+
+export type ExpenseCategory = 'food' | 'travel' | 'education' | 'shopping' | 'bills' | 'entertainment' | 'health' | 'other';
+export type BudgetStatus = 'on_track' | 'warning' | 'over';
+
+/** A monthly spending limit for one category, or for all spending when `category` is null. */
+export interface Budget {
+  id: string;
+  category: ExpenseCategory | null;
+  amount: number;
+  currency: string;
+  alertThreshold: number; // percent of the limit that counts as "warning"
+  month: string; // YYYY-MM the progress below is for
+  spent: number;
+  remaining: number;
+  percentUsed: number;
+  status: BudgetStatus;
 }

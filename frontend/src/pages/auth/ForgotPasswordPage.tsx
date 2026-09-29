@@ -1,73 +1,76 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles, Mail, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, MailCheck } from 'lucide-react';
 import { authService } from '../../services/authService';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
+import { AuthLayout } from './AuthLayout';
+import { errorMessage } from '../../services/api';
+import { Alert } from '../../components/ui/Alert';
 
 export const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    await authService.forgotPassword(email);
-    setIsLoading(false);
-    setSubmitted(true);
+    setError('');
+    try {
+      await authService.forgotPassword(email);
+      setSubmitted(true);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
+  const backLink = (
+    <Link to="/login" className="inline-flex items-center gap-1.5 text-sm font-medium text-fg-subtle hover:text-fg">
+      <ArrowLeft className="size-4" />
+      Back to sign in
+    </Link>
+  );
+
+  if (submitted) {
+    return (
+      <AuthLayout title="Check your email" description={`If an account exists for ${email}, we've sent a link to reset your password.`}>
+        <div className="flex items-center gap-3 p-4 rounded-lg border border-success-line bg-success-subtle">
+          <MailCheck className="size-5 text-success shrink-0" />
+          <p className="text-sm text-fg-muted">
+            The link works once and expires in 30 minutes. If nothing arrives, check your spam folder or try again.
+          </p>
+        </div>
+        <div className="mt-6">{backLink}</div>
+      </AuthLayout>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-white flex flex-col justify-center items-center px-4 py-12 text-left">
-      <div className="w-full max-w-sm space-y-6">
-        <div className="flex flex-col items-center text-center space-y-2">
-          <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-black text-white font-bold">
-            <Sparkles className="w-5 h-5 text-white" />
-          </div>
-          <h1 className="text-xl font-bold tracking-tight text-[#111111]">Reset Password</h1>
-          <p className="text-xs text-[#666666]">Enter your student email to receive reset instructions</p>
-        </div>
-
-        {submitted ? (
-          <div className="p-4 rounded-lg border border-emerald-200 bg-emerald-50/60 text-emerald-900 space-y-3 text-xs text-center">
-            <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
-            <div className="font-semibold text-sm">Reset link sent!</div>
-            <p className="text-emerald-800 text-[11px]">
-              We've dispatched password recovery steps to <span className="font-semibold">{email}</span>.
-            </p>
-            <Link to="/login" className="inline-block mt-2 font-semibold text-black underline">
-              Return to Login
-            </Link>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              label="Student email address"
-              type="email"
-              placeholder="student@university.edu"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              leftIcon={<Mail className="w-4 h-4" />}
-              required
-            />
-
-            <Button type="submit" variant="primary" className="w-full h-10 mt-2" isLoading={isLoading}>
-              Send reset link
-            </Button>
-          </form>
+    <AuthLayout title="Reset your password" description="Enter your account email and we'll send you a reset link.">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <Alert variant="error" title="Request failed">
+            {error}
+          </Alert>
         )}
-
-        <div className="text-center pt-2">
-          <Link
-            to="/login"
-            className="inline-flex items-center gap-1.5 text-xs text-[#666666] hover:text-[#111111]"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Back to sign in
-          </Link>
-        </div>
-      </div>
-    </div>
+        <Input
+          label="Email"
+          type="email"
+          autoComplete="email"
+          placeholder="you@university.edu"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <Button type="submit" size="lg" className="w-full" isLoading={isLoading}>
+          Send reset link
+        </Button>
+      </form>
+      <div className="mt-6 text-center">{backLink}</div>
+    </AuthLayout>
   );
 };

@@ -9,6 +9,7 @@ export interface DrawerProps {
   children: React.ReactNode;
   side?: 'left' | 'right';
   className?: string;
+  bodyClassName?: string;
 }
 
 export const Drawer: React.FC<DrawerProps> = ({
@@ -18,17 +19,17 @@ export const Drawer: React.FC<DrawerProps> = ({
   children,
   side = 'left',
   className,
+  bodyClassName,
 }) => {
   useEffect(() => {
+    if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) onClose();
+      if (e.key === 'Escape') onClose();
     };
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      window.addEventListener('keydown', handleKeyDown);
-    }
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = '';
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [isOpen, onClose]);
@@ -36,34 +37,28 @@ export const Drawer: React.FC<DrawerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden">
-      <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity"
-        onClick={onClose}
-      />
-
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-fg/40 animate-fade-in" onClick={onClose} aria-hidden="true" />
       <aside
+        role="dialog"
+        aria-modal="true"
         className={cn(
-          'fixed inset-y-0 z-50 flex w-72 sm:w-80 flex-col bg-white border-r border-[#EAEAEA] shadow-xl transition-transform duration-200 ease-in-out',
-          side === 'left' ? 'left-0' : 'right-0 border-l border-r-0',
+          'absolute inset-y-0 flex w-[280px] max-w-[85vw] flex-col bg-surface shadow-lg',
+          side === 'left' ? 'left-0 border-r border-line animate-slide-in-left' : 'right-0 border-l border-line',
           className
         )}
       >
-        <div className="flex items-center justify-between p-4 border-b border-[#EAEAEA]">
-          {title ? (
-            <div className="text-sm font-semibold text-[#111111]">{title}</div>
-          ) : (
-            <div />
-          )}
+        <div className="flex items-center justify-between h-14 px-4 border-b border-line shrink-0">
+          {title ?? <span />}
           <button
             onClick={onClose}
-            className="rounded-md p-1 text-[#8A8A8A] hover:text-[#111111] hover:bg-[#F7F7F7] transition-colors"
+            className="rounded-md p-1.5 text-fg-faint hover:text-fg hover:bg-hover transition-colors"
+            aria-label="Close"
           >
-            <X className="w-4 h-4" />
-            <span className="sr-only">Close menu</span>
+            <X className="size-4" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 text-left">{children}</div>
+        <div className={cn('flex-1 overflow-y-auto', bodyClassName ?? 'p-3')}>{children}</div>
       </aside>
     </div>
   );

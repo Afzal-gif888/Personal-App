@@ -1,87 +1,73 @@
 import type { StudySession, StudySessionStatus } from '../types';
-import { storage } from './storage';
+import { api } from './api';
 
-const delay = (ms = 150) => new Promise((resolve) => setTimeout(resolve, ms));
+interface StudySessionOut {
+  id: string;
+  subjectName: string | null;
+  topic: string;
+  description: string | null;
+  date: string;
+  startTime: string;
+  endTime: string;
+  priority: StudySession['priority'];
+  status: StudySessionStatus | 'missed';
+}
+
+const toSession = (s: StudySessionOut): StudySession => ({
+  id: s.id,
+  subject: s.subjectName ?? '',
+  topic: s.topic,
+  date: s.date,
+  startTime: s.startTime,
+  endTime: s.endTime,
+  priority: s.priority,
+  status: s.status === 'missed' ? 'cancelled' : s.status,
+  notes: s.description ?? undefined,
+});
+
+function toBody(data: Partial<StudySession>) {
+  const body: Record<string, unknown> = {};
+  if (data.subject !== undefined) body.subjectName = data.subject || null;
+  if (data.topic !== undefined) body.topic = data.topic;
+  if (data.notes !== undefined) body.description = data.notes || null;
+  if (data.date !== undefined) body.date = data.date;
+  if (data.startTime !== undefined) body.startTime = data.startTime;
+  if (data.endTime !== undefined) body.endTime = data.endTime;
+  if (data.priority !== undefined) body.priority = data.priority;
+  if (data.status !== undefined) body.status = data.status;
+  return body;
+}
 
 export const studyPlanService = {
   async getStudySessions(): Promise<StudySession[]> {
-    await delay(150);
-    return storage.getStudySessions();
+    return (await api.get<StudySessionOut[]>('/study-sessions')).map(toSession);
   },
 
-  async createSession(sessionData: Omit<StudySession, 'id'>): Promise<StudySession> {
-    await delay(200);
-    const sessions = storage.getStudySessions();
-    const newSession: StudySession = {
-      ...sessionData,
-      id: `plan-${Date.now()}`,
-    };
-    const updated = [newSession, ...sessions];
-    storage.setStudySessions(updated);
-    return newSession;
+  async createSession(data: Omit<StudySession, 'id'>): Promise<StudySession> {
+    return toSession(await api.post<StudySessionOut>('/study-sessions', toBody(data)));
   },
 
   async updateSession(id: string, updates: Partial<StudySession>): Promise<StudySession> {
-    await delay(150);
-    const sessions = storage.getStudySessions();
-    let updatedSession: StudySession | null = null;
-    const updated = sessions.map((s) => {
-      if (s.id === id) {
-        updatedSession = { ...s, ...updates };
-        return updatedSession;
-      }
-      return s;
-    });
-    if (!updatedSession) throw new Error(`Study session with id ${id} not found.`);
-    storage.setStudySessions(updated);
-    return updatedSession;
+    return toSession(await api.patch<StudySessionOut>(`/study-sessions/${id}`, toBody(updates)));
   },
 
   async deleteSession(id: string): Promise<void> {
-    await delay(150);
-    const sessions = storage.getStudySessions();
-    storage.setStudySessions(sessions.filter((s) => s.id !== id));
+    await api.delete(`/study-sessions/${id}`);
   },
 
   async toggleSessionComplete(id: string): Promise<StudySession> {
-    const sessions = storage.getStudySessions();
-    const target = sessions.find((s) => s.id === id);
-    if (!target) throw new Error(`Study session with id ${id} not found.`);
-    const newStatus: StudySessionStatus = target.status === 'completed' ? 'scheduled' : 'completed';
-    return this.updateSession(id, { status: newStatus });
+    const sessions = await studyPlanService.getStudySessions();
+    const current = sessions.find((s) => s.id === id);
+    return studyPlanService.updateSession(id, { status: current?.status === 'completed' ? 'scheduled' : 'completed' });
   },
 
-  async generateAIStudyPlan(subject: string, _targetHours: number): Promise<StudySession[]> {
-    await delay(1000); // Simulate AI generation processing
-    const todayStr = new Date().toISOString().split('T')[0];
-    const generatedSessions: StudySession[] = [
-      {
-        id: `plan-ai-1-${Date.now()}`,
-        subject: subject || 'Machine Learning',
-        topic: 'Core Theory & Formula Proofs',
-        date: todayStr,
-        startTime: '16:00',
-        endTime: '17:30',
-        priority: 'high',
-        status: 'scheduled',
-        notes: 'AI generated: High leverage topic revision based on upcoming exams.',
-      },
-      {
-        id: `plan-ai-2-${Date.now()}`,
-        subject: subject || 'Machine Learning',
-        topic: 'Practice Problem Solving & Code Lab',
-        date: todayStr,
-        startTime: '18:00',
-        endTime: '19:30',
-        priority: 'medium',
-        status: 'scheduled',
-        notes: 'AI generated: Active recall exercises.',
-      },
-    ];
-
-    const currentSessions = storage.getStudySessions();
-    const updated = [...generatedSessions, ...currentSessions];
-    storage.setStudySessions(updated);
-    return generatedSessions;
+  /** Server-side plan generator: spreads sessions over the next days inside the preferred study window. */
+  async generateAIStudyPlan(subject: string, targetHours: number): Promise<StudySession[]> {
+    const minutesPerDay = Math.min(600, Math.max(15, Math.round((targetHours || 1.5) * 60)));
+    const plan = await api.post<{ sessions: StudySessionOut[] }>('/study-plans/generate', {
+      subject: subject || 'General revision',
+      minutesPerDay,
+    });
+    return plan.sessions.map(toSession);
   },
 };

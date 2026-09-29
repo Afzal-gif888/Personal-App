@@ -1,56 +1,42 @@
-import type { ApprovalAction } from '../types';
-import { storage } from './storage';
-import { reminderService } from './reminderService';
-import { taskService } from './taskService';
+import type { ApprovalAction, ApprovalStatus } from '../types';
+import { api } from './api';
 
-const delay = (ms = 150) => new Promise((resolve) => setTimeout(resolve, ms));
+interface ApprovalOut {
+  id: string;
+  agentRunId: string | null;
+  action: string;
+  actionLabel: string;
+  title: string;
+  description: string | null;
+  details: Record<string, unknown>;
+  status: ApprovalStatus;
+  expiresAt: string | null;
+  respondedAt: string | null;
+  createdAt: string;
+}
+
+const toApproval = (a: ApprovalOut): ApprovalAction => ({
+  id: a.id,
+  runId: a.agentRunId ?? undefined,
+  action: a.action,
+  type: a.actionLabel,
+  title: a.title,
+  description: a.description ?? '',
+  details: a.details,
+  status: a.status,
+  requestedAt: a.createdAt,
+  respondedAt: a.respondedAt ?? undefined,
+  expiresAt: a.expiresAt ?? undefined,
+});
 
 export const approvalService = {
   async getApprovals(): Promise<ApprovalAction[]> {
-    await delay(150);
-    return storage.getApprovals();
+    return (await api.getAll<ApprovalOut>('/approvals')).map(toApproval);
   },
 
+  /** Approving applies exactly the previewed change on the server; rejecting discards it. */
   async respondToApproval(id: string, decision: 'approved' | 'rejected'): Promise<ApprovalAction> {
-    await delay(200);
-    const approvals = storage.getApprovals();
-    const target = approvals.find((a) => a.id === id);
-    if (!target) throw new Error(`Approval action with id ${id} not found.`);
-
-    const updatedAction: ApprovalAction = {
-      ...target,
-      status: decision,
-      respondedAt: new Date().toISOString(),
-    };
-
-    const updated = approvals.map((a) => (a.id === id ? updatedAction : a));
-    storage.setApprovals(updated);
-
-    // If approved, trigger corresponding mock side-effect in application state!
-    if (decision === 'approved') {
-      if (target.type.toLowerCase().includes('reminder')) {
-        await reminderService.createReminder({
-          title: target.title.replace('Schedule ', '').replace('Create ', ''),
-          description: target.description,
-          date: target.details['Date'] || new Date().toISOString().split('T')[0],
-          time: target.details['Time'] || '19:00',
-          repeat: 'none',
-          status: 'upcoming',
-        });
-      } else if (target.type.toLowerCase().includes('task')) {
-        await taskService.createTask({
-          title: target.title,
-          description: target.description,
-          category: (target.details['Category']?.toLowerCase() as any) || 'general',
-          subject: target.details['Subject'] || undefined,
-          priority: (target.details['Priority']?.toLowerCase() as any) || 'high',
-          dueDate: target.details['DueDate'] || new Date().toISOString().split('T')[0],
-          dueTime: target.details['DueTime'] || '17:00',
-          status: 'pending',
-        });
-      }
-    }
-
-    return updatedAction;
+    const path = decision === 'approved' ? 'approve' : 'reject';
+    return toApproval(await api.post<ApprovalOut>(`/approvals/${id}/${path}`));
   },
 };

@@ -3,13 +3,45 @@ import type { ButtonHTMLAttributes } from 'react';
 import { Loader2 } from 'lucide-react';
 import { cn } from '../../utils/cn';
 
+export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive';
+export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
+
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive';
-  size?: 'sm' | 'md' | 'lg';
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   isLoading?: boolean;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
+  /** Square button that only contains an icon. Requires an aria-label. */
+  iconOnly?: boolean;
 }
+
+const VARIANTS: Record<ButtonVariant, string> = {
+  primary:
+    'bg-accent text-white border border-accent shadow-xs hover:bg-accent-hover hover:border-accent-hover',
+  secondary:
+    'bg-surface text-fg border border-line-strong shadow-xs hover:bg-subtle',
+  outline:
+    'bg-surface text-fg border border-line-strong shadow-xs hover:bg-subtle',
+  ghost:
+    'bg-transparent text-fg-muted border border-transparent hover:bg-hover hover:text-fg',
+  destructive:
+    'bg-danger-solid text-white border border-danger-solid shadow-xs hover:bg-danger hover:border-danger',
+};
+
+const SIZES: Record<ButtonSize, string> = {
+  xs: 'h-7 px-2 text-xs gap-1 rounded-md',
+  sm: 'h-8 px-3 text-sm gap-1.5 rounded-md',
+  md: 'h-9 px-3.5 text-sm gap-2 rounded-lg',
+  lg: 'h-10 px-4 text-sm gap-2 rounded-lg',
+};
+
+const ICON_SIZES: Record<ButtonSize, string> = {
+  xs: 'h-7 w-7 rounded-md',
+  sm: 'h-8 w-8 rounded-md',
+  md: 'h-9 w-9 rounded-lg',
+  lg: 'h-10 w-10 rounded-lg',
+};
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
@@ -19,6 +51,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       variant = 'primary',
       size = 'md',
       isLoading = false,
+      iconOnly = false,
       disabled,
       leftIcon,
       rightIcon,
@@ -27,38 +60,24 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref
   ) => {
-    const baseStyles =
-      'inline-flex items-center justify-center font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-black disabled:opacity-50 disabled:pointer-events-none rounded-md text-xs sm:text-sm tracking-tight cursor-pointer';
-
-    const variants = {
-      primary: 'bg-black text-white hover:bg-neutral-800 active:bg-neutral-900 border border-transparent shadow-xs',
-      secondary: 'bg-[#F7F7F7] text-[#111111] hover:bg-[#F3F3F3] active:bg-[#EAEAEA] border border-[#EAEAEA]',
-      outline: 'bg-white text-[#111111] border border-[#EAEAEA] hover:bg-[#F7F7F7] active:bg-[#F3F3F3]',
-      ghost: 'bg-transparent text-[#666666] hover:text-[#111111] hover:bg-[#F7F7F7]',
-      destructive: 'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 border border-transparent',
-    };
-
-    const sizes = {
-      sm: 'h-8 px-3 text-xs gap-1.5',
-      md: 'h-9 px-4 text-xs sm:text-sm gap-2',
-      lg: 'h-10 px-5 text-sm gap-2',
-    };
-
     return (
       <button
         ref={ref}
         type={type}
         disabled={disabled || isLoading}
-        className={cn(baseStyles, variants[variant], sizes[size], className)}
+        className={cn(
+          'inline-flex items-center justify-center font-medium whitespace-nowrap transition-colors select-none',
+          'focus-visible:outline-none focus-visible:shadow-focus',
+          'disabled:opacity-50 disabled:pointer-events-none [&_svg]:shrink-0',
+          VARIANTS[variant],
+          iconOnly ? ICON_SIZES[size] : SIZES[size],
+          className
+        )}
         {...props}
       >
-        {isLoading ? (
-          <Loader2 className="w-4 h-4 animate-spin text-current shrink-0" />
-        ) : (
-          leftIcon && <span className="shrink-0">{leftIcon}</span>
-        )}
-        <span>{children}</span>
-        {!isLoading && rightIcon && <span className="shrink-0">{rightIcon}</span>}
+        {isLoading ? <Loader2 className="size-4 animate-spin" /> : leftIcon}
+        {iconOnly ? (!isLoading && children) : children && <span className="truncate">{children}</span>}
+        {!isLoading && rightIcon}
       </button>
     );
   }

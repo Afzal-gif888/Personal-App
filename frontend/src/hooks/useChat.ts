@@ -1,14 +1,16 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { chatService, CHAT_UI_STORAGE_KEYS } from '../services/chatService';
 import type { Conversation, ChatMessage } from '../types';
 import { toast } from '../stores/notificationStore';
+import { errorMessage } from '../services/api';
+import { invalidateAfterApproval } from './useApprovals';
 
 export function useChat() {
   const queryClient = useQueryClient();
 
   // Temporary UI state: Active conversation ID in localStorage
-  const [activeConversationId, setActiveIdState] = useState<string>(() => {
+  const [selectedConversationId, setActiveIdState] = useState<string>(() => {
     try {
       return localStorage.getItem(CHAT_UI_STORAGE_KEYS.ACTIVE_CONVERSATION_ID) || '';
     } catch {
@@ -22,23 +24,12 @@ export function useChat() {
     queryFn: () => chatService.getConversations(),
   });
 
-  const conversations = conversationsQuery.data || [];
+  const conversations = useMemo(() => conversationsQuery.data ?? [], [conversationsQuery.data]);
 
-  // Automatically select the first conversation if none is selected or selected one doesn't exist
-  useEffect(() => {
-    if (conversations.length > 0) {
-      const exists = conversations.some((c) => c.id === activeConversationId);
-      if (!activeConversationId || !exists) {
-        const defaultId = conversations[0].id;
-        setActiveIdState(defaultId);
-        try {
-          localStorage.setItem(CHAT_UI_STORAGE_KEYS.ACTIVE_CONVERSATION_ID, defaultId);
-        } catch {
-          // ignore
-        }
-      }
-    }
-  }, [conversations, activeConversationId]);
+  // Fall back to the most recent conversation when the stored selection no longer exists
+  const activeConversationId = conversations.some((c) => c.id === selectedConversationId)
+    ? selectedConversationId
+    : conversations[0]?.id ?? '';
 
   const selectConversation = useCallback((id: string) => {
     setActiveIdState(id);
@@ -77,14 +68,17 @@ export function useChat() {
         selectConversation(targetConvId);
         queryClient.invalidateQueries({ queryKey: ['conversations'] });
       }
-      return chatService.sendMessage(targetConvId, text);
+      const result = await chatService.sendMessage(targetConvId, text);
+      return { conversationId: targetConvId, ...result };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['chatMessages', activeConversationId] });
+    onSuccess: ({ conversationId }) => {
+      // Use the id the message was actually sent to — it may be a conversation created above
+      queryClient.invalidateQueries({ queryKey: ['chatMessages', conversationId] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       queryClient.invalidateQueries({ queryKey: ['agentRuns'] });
+      queryClient.invalidateQueries({ queryKey: ['approvals'] });
     },
-    onError: () => toast.error('Failed to send message'),
+    onError: (err) => toast.error('Failed to send message', errorMessage(err)),
   });
 
   // Mutation: Retry message
@@ -123,19 +117,22 @@ export function useChat() {
     onError: () => toast.error('Failed to delete conversation'),
   });
 
-  // Mutation: Handle action decision (approve/reject)
+  // Mutation: Approve or reject one proposed action
   const actionDecisionMutation = useMutation({
-    mutationFn: ({ messageId, decision }: { messageId: string; decision: 'approved' | 'rejected' }) =>
-      chatService.handleActionCardDecision(messageId, decision),
+    mutationFn: ({ approvalId, decision }: { approvalId: string; decision: 'approved' | 'rejected' }) =>
+      chatService.decideAction(approvalId, decision),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['chatMessages', activeConversationId] });
-      queryClient.invalidateQueries({ queryKey: ['reminders'] });
-      queryClient.invalidateQueries({ queryKey: ['studySessions'] });
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      invalidateAfterApproval(queryClient);
       toast.success(
         variables.decision === 'approved' ? 'Action Approved' : 'Action Rejected',
-        variables.decision === 'approved' ? 'Resource created in your workspace.' : 'Action cancelled.'
+        variables.decision === 'approved' ? 'Saved to your workspace.' : 'No changes were made.'
       );
+    },
+    onError: (err) => {
+      // e.g. the approval expired: refresh so the card shows its real status
+      queryClient.invalidateQueries({ queryKey: ['chatMessages', activeConversationId] });
+      toast.error('Could not complete the action', errorMessage(err));
     },
   });
 

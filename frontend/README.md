@@ -1,6 +1,6 @@
 ﻿# Frontend
 
-Owns the existing React, TypeScript, UI, routing, state, API/service layer, and mock data. The application was moved here without changing its behavior.
+Owns the React, TypeScript, UI, routing, client state and the API/service layer (`src/services`). All data comes from the backend; there is no mock data. The application was moved here without changing its behavior.
 
 ## Run independently
 
@@ -11,4 +11,4 @@ npm run dev
 
 Other available commands: `npm run build`, `npm run lint`, and `npm run preview`.
 
-The current application uses mock services. When the backend is available, configure a public `VITE_API_BASE_URL` and replace/adapt service implementations to the versioned REST contract. Never place LLM keys, database credentials, or other secrets in frontend variables; Vite embeds `VITE_*` values in browser assets.
+Services call the backend at `/api/v1` (proxied to `http://localhost:8000` in development; set `VITE_API_URL` for another origin).

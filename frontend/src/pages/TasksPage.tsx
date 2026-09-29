@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Plus, Search, Trash2, Edit3, Calendar } from 'lucide-react';
+import { Plus, Pencil, Trash2, CheckSquare } from 'lucide-react';
 import { useTasks } from '../hooks/useTasks';
 import type { Task, Priority, TaskCategory } from '../types';
+import { Page, PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
@@ -10,43 +11,37 @@ import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Checkbox } from '../components/ui/Checkbox';
 import { Modal } from '../components/ui/Modal';
+import { Tabs } from '../components/ui/Tabs';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
-import { getPriorityBadgeColor, formatDate } from '../utils/formatters';
+import { RowActions } from '../components/ui/RowActions';
+import { Table, THead, TBody, TR, TH, TD } from '../components/ui/Table';
+import { Toolbar, SearchField, FilterSelect, TableFooter } from '../components/ui/Toolbar';
+import { DesktopOnly, MobileList, MobileRow } from '../components/ui/ResponsiveList';
+import { formatDayLabel, formatTime, daysUntil, todayISO } from '../utils/formatters';
+import { PRIORITY_STYLES, CATEGORY_LABELS, statusStyle } from '../utils/status';
+import { cn } from '../utils/cn';
 
-const CATEGORY_LABELS: Record<TaskCategory, string> = {
-  academic: 'Academic',
-  personal: 'Personal',
-  financial: 'Financial',
-  career: 'Career',
-  general: 'General',
-};
+type StatusFilter = 'open' | 'duesoon' | 'high' | 'completed' | 'all';
 
-const CATEGORY_COLORS: Record<TaskCategory, string> = {
-  academic: 'bg-blue-50 text-blue-700 border border-blue-100',
-  personal: 'bg-purple-50 text-purple-700 border border-purple-100',
-  financial: 'bg-emerald-50 text-emerald-700 border border-emerald-100',
-  career: 'bg-amber-50 text-amber-700 border border-amber-100',
-  general: 'bg-[#F7F7F7] text-[#666666] border border-[#EAEAEA]',
-};
+const CATEGORY_OPTIONS = Object.entries(CATEGORY_LABELS).map(([value, label]) => ({ value, label }));
 
 export const TasksPage: React.FC = () => {
   const { tasks, createTask, isCreating, updateTask, toggleComplete, deleteTask } = useTasks();
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'pending' | 'completed' | 'high' | 'duesoon'>('all');
-  const [activeCategoryFilter, setActiveCategoryFilter] = useState<TaskCategory | 'all'>('all');
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('open');
+  const [categoryFilter, setCategoryFilter] = useState<TaskCategory | 'all'>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
 
-  // Form states
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState<TaskCategory>('academic');
   const [subject, setSubject] = useState('');
   const [priority, setPriority] = useState<Priority>('medium');
-  const [dueDate, setDueDate] = useState(new Date().toISOString().split('T')[0]);
+  const [dueDate, setDueDate] = useState(todayISO());
   const [dueTime, setDueTime] = useState('23:59');
 
   const openCreateModal = () => {
@@ -56,7 +51,7 @@ export const TasksPage: React.FC = () => {
     setCategory('academic');
     setSubject('');
     setPriority('medium');
-    setDueDate(new Date().toISOString().split('T')[0]);
+    setDueDate(todayISO());
     setDueTime('23:59');
     setIsModalOpen(true);
   };
@@ -76,259 +71,277 @@ export const TasksPage: React.FC = () => {
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
-
+    const payload = { title, description, category, subject, priority, dueDate, dueTime };
     if (editingTask) {
-      await updateTask({
-        id: editingTask.id,
-        updates: { title, description, category, subject, priority, dueDate, dueTime },
-      });
+      await updateTask({ id: editingTask.id, updates: payload });
     } else {
-      await createTask({
-        title,
-        description,
-        category,
-        subject,
-        priority,
-        dueDate,
-        dueTime,
-        status: 'pending',
-      });
+      await createTask({ ...payload, status: 'pending' });
     }
     setIsModalOpen(false);
   };
 
-  // Filter & Search Logic
-  const filteredTasks = tasks.filter((t) => {
-    const matchesSearch =
-      t.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (t.subject || '').toLowerCase().includes(searchQuery.toLowerCase());
+  const isOpen = (t: Task) => t.status !== 'completed';
+  const counts = {
+    open: tasks.filter(isOpen).length,
+    duesoon: tasks.filter((t) => isOpen(t) && daysUntil(t.dueDate) <= 2).length,
+    high: tasks.filter((t) => isOpen(t) && t.priority === 'high').length,
+    completed: tasks.filter((t) => !isOpen(t)).length,
+    all: tasks.length,
+  };
 
-    if (!matchesSearch) return false;
-    if (activeCategoryFilter !== 'all' && t.category !== activeCategoryFilter) return false;
-    if (activeFilter === 'pending') return t.status !== 'completed';
-    if (activeFilter === 'completed') return t.status === 'completed';
-    if (activeFilter === 'high') return t.priority === 'high';
-    if (activeFilter === 'duesoon') {
-      const due = new Date(t.dueDate).getTime();
-      const now = new Date().getTime();
-      return due - now < 3 * 86400000 && t.status !== 'completed';
-    }
-    return true;
-  });
+  const query = search.trim().toLowerCase();
+  const filteredTasks = tasks
+    .filter((t) => {
+      if (query && !`${t.title} ${t.subject ?? ''} ${t.description ?? ''}`.toLowerCase().includes(query)) return false;
+      if (categoryFilter !== 'all' && t.category !== categoryFilter) return false;
+      switch (statusFilter) {
+        case 'open':
+          return isOpen(t);
+        case 'duesoon':
+          return isOpen(t) && daysUntil(t.dueDate) <= 2;
+        case 'high':
+          return isOpen(t) && t.priority === 'high';
+        case 'completed':
+          return !isOpen(t);
+        default:
+          return true;
+      }
+    })
+    .sort((a, b) => Number(!isOpen(a)) - Number(!isOpen(b)) || a.dueDate.localeCompare(b.dueDate));
 
   return (
-    <div className="space-y-6 text-left">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#EAEAEA]">
-        <div>
-          <h1 className="text-lg sm:text-xl font-bold text-[#111111] tracking-tight">Tasks</h1>
-          <p className="text-xs text-[#666666] mt-0.5">Academic, personal, financial and career tasks in one place</p>
-        </div>
-        <Button variant="primary" size="sm" onClick={openCreateModal} leftIcon={<Plus className="w-4 h-4" />}>
-          Create Task
-        </Button>
-      </div>
+    <Page>
+      <PageHeader
+        title="Tasks"
+        description="Assignments and to-dos across academics, career, finances and personal life."
+        actions={
+          <Button onClick={openCreateModal} leftIcon={<Plus className="size-4" />}>
+            New task
+          </Button>
+        }
+      />
 
-      {/* Controls Bar */}
-      <div className="space-y-3">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="w-full md:w-72">
-            <Input
-              placeholder="Search tasks..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              leftIcon={<Search className="w-4 h-4" />}
-            />
-          </div>
-
-          {/* Status Filter Pills */}
-          <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-1">
-            {(['all', 'pending', 'completed', 'high', 'duesoon'] as const).map((filter) => {
-              const labels = { all: 'All', pending: 'Pending', completed: 'Done', high: 'High Priority', duesoon: 'Due Soon' };
-              return (
-                <button
-                  key={filter}
-                  onClick={() => setActiveFilter(filter)}
-                  className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors shrink-0 ${
-                    activeFilter === filter
-                      ? 'bg-black text-white font-semibold'
-                      : 'bg-[#F7F7F7] text-[#666666] hover:bg-[#F3F3F3] hover:text-[#111111]'
-                  }`}
-                >
-                  {labels[filter]}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Category Filter Pills */}
-        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
-          {(['all', 'academic', 'personal', 'financial', 'career', 'general'] as const).map((cat) => (
-            <button
-              key={cat}
-              onClick={() => setActiveCategoryFilter(cat)}
-              className={`px-2.5 py-1 rounded-full text-[11px] font-medium transition-colors shrink-0 border ${
-                activeCategoryFilter === cat
-                  ? 'bg-[#111111] text-white border-[#111111]'
-                  : 'bg-white text-[#666666] border-[#EAEAEA] hover:border-[#111111] hover:text-[#111111]'
-              }`}
-            >
-              {cat === 'all' ? 'All Categories' : CATEGORY_LABELS[cat]}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Task List */}
-      {filteredTasks.length === 0 ? (
-        <EmptyState
-          title="No tasks found"
-          description="Create a task to get started tracking your work across all areas of life."
-          actionLabel="Create Task"
-          onAction={openCreateModal}
+      <Toolbar>
+        <Tabs
+          variant="pills"
+          activeTab={statusFilter}
+          onChange={(id) => setStatusFilter(id as StatusFilter)}
+          tabs={[
+            { id: 'open', label: 'Open', badge: counts.open },
+            { id: 'duesoon', label: 'Due soon', badge: counts.duesoon },
+            { id: 'high', label: 'High priority', badge: counts.high },
+            { id: 'completed', label: 'Done', badge: counts.completed },
+            { id: 'all', label: 'All', badge: counts.all },
+          ]}
         />
-      ) : (
-        <div className="space-y-3">
-          {filteredTasks.map((t) => (
-            <Card
-              key={t.id}
-              className={`transition-all ${t.status === 'completed' ? 'opacity-60 bg-[#F7F7F7]/50' : 'bg-white'}`}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-3 flex-1 min-w-0">
-                  <Checkbox checked={t.status === 'completed'} onChange={() => toggleComplete(t.id)} className="mt-1" />
-                  <div className="space-y-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h3
-                        className={`text-xs sm:text-sm font-semibold text-[#111111] leading-snug ${
-                          t.status === 'completed' ? 'line-through text-[#666666]' : ''
-                        }`}
-                      >
-                        {t.title}
-                      </h3>
-                      <Badge className={getPriorityBadgeColor(t.priority)} size="sm">{t.priority}</Badge>
-                      <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${CATEGORY_COLORS[t.category]}`}>
-                        {CATEGORY_LABELS[t.category]}
-                      </span>
-                    </div>
-
-                    {t.description && (
-                      <p className="text-xs text-[#666666] line-clamp-2 leading-relaxed">{t.description}</p>
-                    )}
-
-                    <div className="flex items-center gap-3 pt-1 text-[11px] text-[#8A8A8A]">
-                      {t.subject && <span className="font-semibold text-[#111111]">{t.subject}</span>}
-                      {t.subject && <span>•</span>}
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3 text-[#8A8A8A]" />
-                        Due {formatDate(t.dueDate)} {t.dueTime ? `at ${t.dueTime}` : ''}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1 shrink-0">
-                  <Button
-                    variant="ghost" size="sm" onClick={() => openEditModal(t)}
-                    className="p-1.5 text-[#8A8A8A] hover:text-[#111111]" title="Edit task"
-                  >
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost" size="sm" onClick={() => setDeletingTaskId(t.id)}
-                    className="p-1.5 text-[#8A8A8A] hover:text-red-600" title="Delete task"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-              </div>
-            </Card>
-          ))}
+        <div className="flex items-center gap-2">
+          <SearchField value={search} onChange={setSearch} placeholder="Search tasks" />
+          <FilterSelect
+            label="Category"
+            value={categoryFilter}
+            onChange={(v) => setCategoryFilter(v as TaskCategory | 'all')}
+            options={[{ value: 'all', label: 'All categories' }, ...CATEGORY_OPTIONS]}
+          />
         </div>
-      )}
+      </Toolbar>
 
-      {/* Create / Edit Modal */}
+      <Card flush className="overflow-hidden">
+        {filteredTasks.length === 0 ? (
+          <EmptyState
+            bare
+            icon={<CheckSquare />}
+            title={query || categoryFilter !== 'all' ? 'No matching tasks' : 'No tasks here'}
+            description={
+              query || categoryFilter !== 'all'
+                ? 'Try a different search or filter.'
+                : 'Create a task, or ask the assistant to add one for you.'
+            }
+            actionLabel="New task"
+            onAction={openCreateModal}
+          />
+        ) : (
+          <>
+            <MobileList>
+              {filteredTasks.map((t) => {
+                const done = !isOpen(t);
+                const p = statusStyle(PRIORITY_STYLES, t.priority);
+                const overdue = !done && daysUntil(t.dueDate) < 0;
+                return (
+                  <MobileRow
+                    key={t.id}
+                    onClick={() => openEditModal(t)}
+                    muted={done}
+                    leading={
+                      <Checkbox
+                        checked={done}
+                        onChange={() => toggleComplete(t.id)}
+                        aria-label={done ? `Reopen "${t.title}"` : `Complete "${t.title}"`}
+                      />
+                    }
+                    title={t.title}
+                    subtitle={t.subject || CATEGORY_LABELS[t.category]}
+                    meta={
+                      <>
+                        <Badge variant={p.variant} dot>
+                          {p.label}
+                        </Badge>
+                        <span className={cn('text-xs tabular', overdue ? 'text-danger font-medium' : 'text-fg-subtle')}>
+                          {overdue ? 'Overdue · ' : 'Due '}
+                          {formatDayLabel(t.dueDate)}
+                          {t.dueTime ? `, ${formatTime(t.dueTime)}` : ''}
+                        </span>
+                      </>
+                    }
+                    actions={
+                      <RowActions
+                        label={`Actions for ${t.title}`}
+                        items={[
+                          { id: 'edit', label: 'Edit', icon: <Pencil />, onClick: () => openEditModal(t) },
+                          { id: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, separated: true, onClick: () => setDeletingTaskId(t.id) },
+                        ]}
+                      />
+                    }
+                  />
+                );
+              })}
+            </MobileList>
+            <DesktopOnly>
+            <Table>
+              <THead>
+                <tr>
+                  <TH className="w-10 pr-0">
+                    <span className="sr-only">Done</span>
+                  </TH>
+                  <TH>Task</TH>
+                  <TH className="hidden md:table-cell">Category</TH>
+                  <TH className="hidden sm:table-cell">Priority</TH>
+                  <TH>Due</TH>
+                  <TH className="w-12">
+                    <span className="sr-only">Actions</span>
+                  </TH>
+                </tr>
+              </THead>
+              <TBody>
+                {filteredTasks.map((t) => {
+                  const done = !isOpen(t);
+                  const p = statusStyle(PRIORITY_STYLES, t.priority);
+                  const days = daysUntil(t.dueDate);
+                  const overdue = !done && days < 0;
+                  return (
+                    <TR key={t.id} interactive onClick={() => openEditModal(t)}>
+                      <TD className="pr-0">
+                        <Checkbox
+                          checked={done}
+                          onChange={() => toggleComplete(t.id)}
+                          aria-label={done ? `Reopen "${t.title}"` : `Complete "${t.title}"`}
+                        />
+                      </TD>
+                      <TD className="w-full max-w-0">
+                        <p className={cn('font-medium truncate', done ? 'text-fg-subtle line-through' : 'text-fg')}>{t.title}</p>
+                        {(t.subject || t.description) && (
+                          <p className="text-xs text-fg-subtle truncate mt-0.5">{t.subject || t.description}</p>
+                        )}
+                      </TD>
+                      <TD className="hidden md:table-cell text-fg-muted">{CATEGORY_LABELS[t.category]}</TD>
+                      <TD className="hidden sm:table-cell">
+                        <Badge variant={p.variant} dot>
+                          {p.label}
+                        </Badge>
+                      </TD>
+                      <TD className="whitespace-nowrap">
+                        <span className={cn('tabular', overdue ? 'text-danger font-medium' : 'text-fg-muted')}>
+                          {overdue ? `Overdue · ${formatDayLabel(t.dueDate)}` : formatDayLabel(t.dueDate)}
+                        </span>
+                        {t.dueTime && <span className="block text-xs text-fg-faint">{formatTime(t.dueTime)}</span>}
+                      </TD>
+                      <TD>
+                        <RowActions
+                          label={`Actions for ${t.title}`}
+                          items={[
+                            { id: 'edit', label: 'Edit', icon: <Pencil />, onClick: () => openEditModal(t) },
+                            {
+                              id: 'delete',
+                              label: 'Delete',
+                              icon: <Trash2 />,
+                              destructive: true,
+                              separated: true,
+                              onClick: () => setDeletingTaskId(t.id),
+                            },
+                          ]}
+                        />
+                      </TD>
+                    </TR>
+                  );
+                })}
+              </TBody>
+            </Table>
+            </DesktopOnly>
+            <TableFooter shown={filteredTasks.length} total={tasks.length} noun="tasks" />
+          </>
+        )}
+      </Card>
+
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingTask ? 'Edit Task' : 'Create New Task'}
-        maxWidth="md"
+        title={editingTask ? 'Edit task' : 'New task'}
+        description={editingTask ? undefined : 'Tasks can also be created by approving an assistant proposal.'}
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-            <Button variant="primary" size="sm" onClick={handleFormSubmit} isLoading={isCreating}>
-              {editingTask ? 'Save Changes' : 'Create Task'}
+            <Button variant="secondary" size="sm" onClick={() => setIsModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" type="submit" form="task-form" isLoading={isCreating}>
+              {editingTask ? 'Save changes' : 'Create task'}
             </Button>
           </>
         }
       >
-        <form onSubmit={handleFormSubmit} className="space-y-4">
+        <form id="task-form" onSubmit={handleFormSubmit} className="space-y-4">
           <Input
-            label="Task Title"
-            placeholder="e.g. Buy groceries, Pay electricity bill, ML Problem Set..."
+            label="Title"
+            placeholder="e.g. ML problem set 4"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             required
+            autoFocus
           />
-
           <Textarea
-            label="Description (Optional)"
-            placeholder="Additional details..."
+            label="Description"
+            placeholder="Optional details"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={2}
           />
-
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Select
               label="Category"
               value={category}
               onChange={(e) => setCategory(e.target.value as TaskCategory)}
-              options={[
-                { value: 'academic', label: 'Academic' },
-                { value: 'personal', label: 'Personal' },
-                { value: 'financial', label: 'Financial' },
-                { value: 'career', label: 'Career' },
-                { value: 'general', label: 'General' },
-              ]}
+              options={CATEGORY_OPTIONS}
             />
-
             <Select
               label="Priority"
               value={priority}
               onChange={(e) => setPriority(e.target.value as Priority)}
               options={[
-                { value: 'high', label: 'High Priority' },
-                { value: 'medium', label: 'Medium Priority' },
-                { value: 'low', label: 'Low Priority' },
+                { value: 'high', label: 'High' },
+                { value: 'medium', label: 'Medium' },
+                { value: 'low', label: 'Low' },
               ]}
             />
           </div>
-
           {category === 'academic' && (
             <Input
-              label="Subject / Course"
-              placeholder="e.g. Machine Learning, Database Systems..."
+              label="Subject"
+              placeholder="e.g. Machine Learning"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
             />
           )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label="Due Date"
-              type="date"
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-              required
-            />
-            <Input
-              label="Due Time"
-              type="time"
-              value={dueTime}
-              onChange={(e) => setDueTime(e.target.value)}
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <Input label="Due date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} required />
+            <Input label="Due time" type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} />
           </div>
         </form>
       </Modal>
@@ -337,11 +350,14 @@ export const TasksPage: React.FC = () => {
         isOpen={!!deletingTaskId}
         onClose={() => setDeletingTaskId(null)}
         onConfirm={async () => {
-          if (deletingTaskId) { await deleteTask(deletingTaskId); setDeletingTaskId(null); }
+          if (deletingTaskId) {
+            await deleteTask(deletingTaskId);
+            setDeletingTaskId(null);
+          }
         }}
-        title="Delete Task"
-        message="Are you sure you want to delete this task? This action cannot be undone."
+        title="Delete task?"
+        message="This task will be permanently removed. This can't be undone."
       />
-    </div>
+    </Page>
   );
 };

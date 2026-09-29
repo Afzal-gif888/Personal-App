@@ -9,48 +9,43 @@ export interface CheckboxProps extends Omit<InputHTMLAttributes<HTMLInputElement
 }
 
 export const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
-  ({ className, label, description, checked, onChange, disabled, id, ...props }, ref) => {
-    const checkboxId = id || (typeof label === 'string' ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
-
-    return (
-      <div className="flex items-start gap-2.5 text-left select-none">
-        <div className="relative flex items-center h-5">
-          <input
-            ref={ref}
-            type="checkbox"
-            id={checkboxId}
-            checked={checked}
-            onChange={onChange}
-            disabled={disabled}
-            className="peer sr-only"
-            {...props}
-          />
-          <div
-            onClick={() => !disabled && onChange?.({ target: { checked: !checked } } as any)}
-            className={cn(
-              'w-4 h-4 rounded border border-[#EAEAEA] bg-white transition-colors flex items-center justify-center cursor-pointer',
-              'peer-focus-visible:ring-1 peer-focus-visible:ring-black',
-              checked && 'bg-black border-black text-white',
-              disabled && 'opacity-50 cursor-not-allowed bg-[#F7F7F7]',
-              className
-            )}
-          >
-            {checked && <Check className="w-3 h-3 stroke-3" />}
-          </div>
-        </div>
-        {(label || description) && (
-          <div className="text-xs">
-            {label && (
-              <label htmlFor={checkboxId} className="font-medium text-[#111111] cursor-pointer block">
-                {label}
-              </label>
-            )}
-            {description && <p className="text-[#8A8A8A] text-[11px] mt-0.5">{description}</p>}
-          </div>
-        )}
-      </div>
-    );
-  }
+  ({ className, label, description, checked, disabled, ...props }, ref) => (
+    <label
+      className={cn(
+        'inline-flex items-start gap-2.5 select-none',
+        disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+      )}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <span className="relative flex items-center justify-center h-5">
+        <input
+          ref={ref}
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          className="peer sr-only"
+          {...props}
+        />
+        <span
+          aria-hidden="true"
+          className={cn(
+            'flex items-center justify-center size-4 rounded border transition-colors',
+            'peer-focus-visible:shadow-focus',
+            checked ? 'bg-accent border-accent text-white' : 'bg-surface border-line-strong',
+            className
+          )}
+        >
+          {checked && <Check className="size-3" strokeWidth={3} />}
+        </span>
+      </span>
+      {(label || description) && (
+        <span className="text-sm">
+          {label && <span className="font-medium text-fg block">{label}</span>}
+          {description && <span className="text-fg-subtle block mt-0.5">{description}</span>}
+        </span>
+      )}
+    </label>
+  )
 );
 
 Checkbox.displayName = 'Checkbox';

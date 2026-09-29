@@ -1,61 +1,68 @@
-import type { Document } from '../types';
-import { storage } from './storage';
+import type { Document, DocumentStatus } from '../types';
+import { api } from './api';
 
-const delay = (ms = 150) => new Promise((resolve) => setTimeout(resolve, ms));
+interface DocumentOut {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  category: string | null;
+  status: DocumentStatus | 'deleted';
+  pageCount: number | null;
+  uploadedAt: string;
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function fileType(name: string, mime: string): string {
+  const ext = name.includes('.') ? name.split('.').pop()!.toLowerCase() : '';
+  return ext || mime.split('/').pop() || 'file';
+}
+
+const toDocument = (d: DocumentOut): Document => ({
+  id: d.id,
+  name: d.name,
+  size: formatSize(d.size),
+  type: fileType(d.name, d.mimeType),
+  pageCount: d.pageCount ?? undefined,
+  uploadedAt: d.uploadedAt.slice(0, 10),
+  category: d.category ?? 'General',
+  status: d.status === 'deleted' ? 'failed' : d.status,
+});
 
 export const documentService = {
   async getDocuments(): Promise<Document[]> {
-    await delay(150);
-    return storage.getDocuments();
+    return (await api.getAll<DocumentOut>('/documents')).map(toDocument);
   },
 
   async deleteDocument(id: string): Promise<void> {
-    await delay(150);
-    const docs = storage.getDocuments();
-    storage.setDocuments(docs.filter((d) => d.id !== id));
+    await api.delete(`/documents/${id}`);
   },
 
-  // Simulates uploading state progression (Uploading -> Processing -> Ready)
-  async uploadDocumentSimulated(
-    file: File | { name: string; size: number },
-    category: string = 'General',
-    onProgress?: (doc: Document) => void
-  ): Promise<Document> {
-    const sizeInMB = (file.size / (1024 * 1024)).toFixed(1);
-    const docId = `doc-${Date.now()}`;
-    const initialDoc: Document = {
-      id: docId,
-      name: file.name,
-      size: `${sizeInMB} MB`,
-      type: 'pdf',
-      pageCount: Math.floor(Math.random() * 25) + 5,
-      uploadedAt: new Date().toISOString().split('T')[0],
-      category: category,
-      status: 'uploading',
-      progress: 35,
-    };
+  /** Uploads the file; the server extracts text (and page count for PDFs) before returning. */
+  async uploadDocument(file: File, category: string = 'General'): Promise<Document> {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('category', category);
+    return toDocument(await api.upload<DocumentOut>('/documents', form));
+  },
 
-    // Store transient uploading doc
-    let docs = [initialDoc, ...storage.getDocuments()];
-    storage.setDocuments(docs);
-    onProgress?.(initialDoc);
-
-    // Step 1: Uploading progress
-    await delay(600);
-    initialDoc.progress = 85;
-    initialDoc.status = 'processing';
-    docs = docs.map((d) => (d.id === docId ? { ...initialDoc } : d));
-    storage.setDocuments(docs);
-    onProgress?.(initialDoc);
-
-    // Step 2: Processing completed
-    await delay(800);
-    initialDoc.progress = 100;
-    initialDoc.status = 'ready';
-    docs = docs.map((d) => (d.id === docId ? { ...initialDoc } : d));
-    storage.setDocuments(docs);
-    onProgress?.(initialDoc);
-
-    return initialDoc;
+  /** Downloads with the auth header and opens the file in a new tab. */
+  async openDocument(id: string): Promise<void> {
+    // Open the tab synchronously so popup blockers allow it, then point it at the file.
+    const tab = window.open('', '_blank');
+    try {
+      const url = URL.createObjectURL(await api.blob(`/documents/${id}/download`));
+      if (tab) tab.location.href = url;
+      else window.location.assign(url);
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      tab?.close();
+      throw err;
+    }
   },
 };

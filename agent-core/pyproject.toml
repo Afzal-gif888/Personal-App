@@ -1,0 +1,25 @@
+[project]
+name = "agentos-agent-core"
+version = "1.0.0"
+description = "AgentOS Agent Core: LangGraph agent service for the AgentOS student workspace"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning:langgraph.*"]
+
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501", "B008", "B904", "UP040", "UP046", "UP047"]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+include = ["app", "tests"]

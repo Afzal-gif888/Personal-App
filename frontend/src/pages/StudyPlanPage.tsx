@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, Sparkles, Clock, CheckCircle2, Trash2, Edit3 } from 'lucide-react';
+import { Plus, Sparkles, Pencil, Trash2, BookOpen, Check, RotateCcw } from 'lucide-react';
 import { useStudyPlan } from '../hooks/useStudyPlan';
+import { useSubjects } from '../hooks/useSubjects';
 import type { StudySession, Priority } from '../types';
+import { Page, PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Textarea } from '../components/ui/Textarea';
@@ -9,28 +11,43 @@ import { Select } from '../components/ui/Select';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
+import { Tabs } from '../components/ui/Tabs';
+import { StatCard } from '../components/ui/StatCard';
+import { StatGrid } from '../components/ui/ResponsiveList';
 import { EmptyState } from '../components/ui/EmptyState';
-import { getPriorityBadgeColor, formatDate } from '../utils/formatters';
+import { RowActions } from '../components/ui/RowActions';
+import { formatDayLabel, formatTime, todayISO } from '../utils/formatters';
+import { PRIORITY_STYLES, SESSION_STATUS_STYLES, statusStyle } from '../utils/status';
+import { cn } from '../utils/cn';
+
+// Used only until the user has added subjects of their own.
+const FALLBACK_SUBJECT = { value: 'General', label: 'General' };
+
+function sessionHours(s: StudySession): number {
+  const [sh, sm] = s.startTime.split(':').map(Number);
+  const [eh, em] = s.endTime.split(':').map(Number);
+  return Math.max(0, (eh * 60 + em - (sh * 60 + sm)) / 60);
+}
+
+type View = 'upcoming' | 'completed' | 'all';
 
 export const StudyPlanPage: React.FC = () => {
-  const {
-    sessions,
-    createSession,
-    updateSession,
-    toggleComplete,
-    deleteSession,
-    generateAIPlan,
-    isGeneratingAI,
-  } = useStudyPlan();
+  const { sessions, createSession, updateSession, toggleComplete, deleteSession, generateAIPlan, isGeneratingAI } =
+    useStudyPlan();
+  const { subjects } = useSubjects();
+  const subjectOptions = subjects.length
+    ? subjects.map((s) => ({ value: s.name, label: s.code ? `${s.name} (${s.code})` : s.name }))
+    : [FALLBACK_SUBJECT];
+  const defaultSubject = subjectOptions[0].value;
 
-  const [viewMode, setViewMode] = useState<'day' | 'week'>('day');
+  const [view, setView] = useState<View>('upcoming');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<StudySession | null>(null);
 
-  // Form states
-  const [subject, setSubject] = useState('Machine Learning');
+  const [subject, setSubject] = useState('');
+  const [planSubject, setPlanSubject] = useState('');
   const [topic, setTopic] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(todayISO());
   const [startTime, setStartTime] = useState('18:00');
   const [endTime, setEndTime] = useState('19:15');
   const [priority, setPriority] = useState<Priority>('high');
@@ -38,9 +55,9 @@ export const StudyPlanPage: React.FC = () => {
 
   const openCreateModal = () => {
     setEditingSession(null);
-    setSubject('Machine Learning');
+    setSubject(defaultSubject);
     setTopic('');
-    setDate(new Date().toISOString().split('T')[0]);
+    setDate(todayISO());
     setStartTime('18:00');
     setEndTime('19:15');
     setPriority('high');
@@ -48,270 +65,221 @@ export const StudyPlanPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
-  const openEditModal = (session: StudySession) => {
-    setEditingSession(session);
-    setSubject(session.subject);
-    setTopic(session.topic);
-    setDate(session.date);
-    setStartTime(session.startTime);
-    setEndTime(session.endTime);
-    setPriority(session.priority);
-    setNotes(session.notes || '');
+  const openEditModal = (s: StudySession) => {
+    setEditingSession(s);
+    setSubject(s.subject);
+    setTopic(s.topic);
+    setDate(s.date);
+    setStartTime(s.startTime);
+    setEndTime(s.endTime);
+    setPriority(s.priority);
+    setNotes(s.notes || '');
     setIsModalOpen(true);
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!topic.trim()) return;
-
+    const payload = { subject, topic, date, startTime, endTime, priority, notes };
     if (editingSession) {
-      await updateSession({
-        id: editingSession.id,
-        updates: { subject, topic, date, startTime, endTime, priority, notes },
-      });
+      await updateSession({ id: editingSession.id, updates: payload });
     } else {
-      await createSession({
-        subject,
-        topic,
-        date,
-        startTime,
-        endTime,
-        priority,
-        status: 'scheduled',
-        notes,
-      });
+      await createSession({ ...payload, status: 'scheduled' });
     }
     setIsModalOpen(false);
   };
 
-  const handleGenerateAI = async () => {
-    await generateAIPlan({ subject: 'Machine Learning', hours: 4 });
-  };
+  const handleGenerateAI = () => generateAIPlan({ subject: planSubject || defaultSubject, hours: 4 });
+  // Keep a session's own subject selectable even if it isn't in the subject list.
+  const formOptions =
+    subject && !subjectOptions.some((o) => o.value === subject)
+      ? [...subjectOptions, { value: subject, label: subject }]
+      : subjectOptions;
+
+  const scheduled = sessions.filter((s) => s.status === 'scheduled');
+  const completed = sessions.filter((s) => s.status === 'completed');
+  const plannedHours = scheduled.reduce((sum, s) => sum + sessionHours(s), 0);
+  const completedHours = completed.reduce((sum, s) => sum + sessionHours(s), 0);
+
+  const visible = sessions
+    .filter((s) => (view === 'upcoming' ? s.status === 'scheduled' : view === 'completed' ? s.status === 'completed' : true))
+    .sort((a, b) => (a.date + a.startTime).localeCompare(b.date + b.startTime));
+
+  const byDate = visible.reduce<Record<string, StudySession[]>>((acc, s) => {
+    (acc[s.date] ||= []).push(s);
+    return acc;
+  }, {});
 
   return (
-    <div className="space-y-6 text-left">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#EAEAEA]">
-        <div>
-          <h1 className="text-lg sm:text-xl font-bold text-[#111111] tracking-tight">Study Plan</h1>
-          <p className="text-xs text-[#666666] mt-0.5">Automated AI study session scheduling and daily syllabus tracking</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleGenerateAI}
-            isLoading={isGeneratingAI}
-            leftIcon={<Sparkles className="w-3.5 h-3.5 text-emerald-600" />}
-          >
-            Generate with AI
-          </Button>
-          <Button variant="primary" size="sm" onClick={openCreateModal} leftIcon={<Plus className="w-4 h-4" />}>
-            Add Session
-          </Button>
-        </div>
-      </div>
+    <Page>
+      <PageHeader
+        title="Study plan"
+        description="Revision sessions you've scheduled or approved from the assistant."
+        actions={
+          <>
+            <Select
+              aria-label="Subject for the generated plan"
+              value={planSubject || defaultSubject}
+              onChange={(e) => setPlanSubject(e.target.value)}
+              options={subjectOptions}
+            />
+            <Button
+              variant="secondary"
+              onClick={handleGenerateAI}
+              isLoading={isGeneratingAI}
+              leftIcon={<Sparkles className="size-4" />}
+            >
+              Generate plan
+            </Button>
+            <Button onClick={openCreateModal} leftIcon={<Plus className="size-4" />}>
+              Add session
+            </Button>
+          </>
+        }
+      />
 
-      {/* View Switcher Bar */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-1 bg-[#F7F7F7] p-1 rounded-md border border-[#EAEAEA]">
-          <button
-            onClick={() => setViewMode('day')}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
-              viewMode === 'day' ? 'bg-black text-white' : 'text-[#666666] hover:text-[#111111]'
-            }`}
-          >
-            Day View
-          </button>
-          <button
-            onClick={() => setViewMode('week')}
-            className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
-              viewMode === 'week' ? 'bg-black text-white' : 'text-[#666666] hover:text-[#111111]'
-            }`}
-          >
-            Week View
-          </button>
-        </div>
-        <span className="text-xs text-[#666666] font-medium">
-          {sessions.length} Scheduled Sessions
-        </span>
-      </div>
+      <StatGrid cols={3}>
+        <StatCard label="Upcoming sessions" value={scheduled.length} hint={`${plannedHours.toFixed(1)} hours planned`} />
+        <StatCard label="Completed" value={completed.length} hint={`${completedHours.toFixed(1)} hours studied`} tone="success" />
+        <StatCard
+          label="Completion rate"
+          value={sessions.length ? `${Math.round((completed.length / sessions.length) * 100)}%` : '—'}
+          hint="Across all sessions"
+        />
+      </StatGrid>
 
-      {/* Session Cards Grid */}
-      {sessions.length === 0 ? (
+      <Tabs
+        variant="pills"
+        activeTab={view}
+        onChange={(id) => setView(id as View)}
+        tabs={[
+          { id: 'upcoming', label: 'Upcoming', badge: scheduled.length },
+          { id: 'completed', label: 'Completed', badge: completed.length },
+          { id: 'all', label: 'All', badge: sessions.length },
+        ]}
+      />
+
+      {visible.length === 0 ? (
         <EmptyState
-          title="No study sessions scheduled"
-          description="Click 'Generate with AI' or manually create a session to organize your daily syllabus goals."
-          actionLabel="Generate with AI"
-          onAction={handleGenerateAI}
+          icon={<BookOpen />}
+          title={view === 'completed' ? 'No completed sessions yet' : 'No sessions scheduled'}
+          description="Add a session manually, or generate a plan and approve it."
+          actionLabel="Add session"
+          onAction={openCreateModal}
         />
       ) : (
-        <div className="space-y-4">
-          <div className="font-semibold text-xs text-[#8A8A8A] uppercase tracking-wider">
-            {formatDate(new Date().toISOString())}
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {sessions.map((s) => (
-              <Card
-                key={s.id}
-                className={`space-y-3 transition-all ${
-                  s.status === 'completed' ? 'bg-[#F7F7F7]/60 border-[#EAEAEA]' : 'bg-white'
-                }`}
-              >
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-1.5 font-mono text-[#666666]">
-                    <Clock className="w-3.5 h-3.5 text-[#8A8A8A]" />
-                    <span>
-                      {s.startTime} - {s.endTime}
-                    </span>
-                  </div>
-                  <Badge className={getPriorityBadgeColor(s.priority)} size="sm">
-                    {s.priority}
-                  </Badge>
-                </div>
-
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-black">
-                    {s.subject}
-                  </span>
-                  <h3
-                    className={`text-sm font-semibold text-[#111111] leading-snug ${
-                      s.status === 'completed' ? 'line-through text-[#666666]' : ''
-                    }`}
-                  >
-                    {s.topic}
-                  </h3>
-                </div>
-
-                {s.notes && (
-                  <p className="text-xs text-[#666666] bg-[#F7F7F7] p-2 rounded border border-[#EAEAEA] leading-relaxed">
-                    {s.notes}
-                  </p>
-                )}
-
-                <div className="flex items-center justify-between pt-2 border-t border-[#EAEAEA]">
-                  <Button
-                    variant={s.status === 'completed' ? 'outline' : 'secondary'}
-                    size="sm"
-                    onClick={() => toggleComplete(s.id)}
-                    className="text-xs px-2.5 h-7"
-                    leftIcon={
-                      s.status === 'completed' ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      ) : undefined
-                    }
-                  >
-                    {s.status === 'completed' ? 'Completed' : 'Mark Completed'}
-                  </Button>
-
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => openEditModal(s)}
-                      className="p-1 text-[#8A8A8A] hover:text-[#111111]"
-                    >
-                      <Edit3 className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => deleteSession(s.id)}
-                      className="p-1 text-[#8A8A8A] hover:text-red-600"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </div>
+        <Card flush className="overflow-hidden">
+          {Object.entries(byDate).map(([day, list]) => (
+            <section key={day} className="border-b border-line last:border-b-0">
+              <header className="flex items-center justify-between px-5 h-9 bg-subtle/70 border-b border-line">
+                <span className="text-xs font-medium text-fg-muted">{formatDayLabel(day)}</span>
+                <span className="text-xs text-fg-faint tabular">
+                  {list.reduce((sum, s) => sum + sessionHours(s), 0).toFixed(1)} h
+                </span>
+              </header>
+              <ul className="divide-y divide-line">
+                {list.map((s) => {
+                  const p = statusStyle(PRIORITY_STYLES, s.priority);
+                  const st = statusStyle(SESSION_STATUS_STYLES, s.status);
+                  const done = s.status === 'completed';
+                  return (
+                    <li key={s.id} className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-5 py-3.5">
+                      <div className="sm:w-36 shrink-0 text-sm text-fg-muted tabular">
+                        {formatTime(s.startTime)} – {formatTime(s.endTime)}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium text-fg-subtle">{s.subject}</p>
+                        <p className={cn('text-sm font-medium truncate', done ? 'text-fg-subtle line-through' : 'text-fg')}>
+                          {s.topic}
+                        </p>
+                        {s.notes && <p className="text-xs text-fg-subtle mt-0.5 line-clamp-1">{s.notes}</p>}
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant={p.variant} dot>
+                          {p.label}
+                        </Badge>
+                        <Badge variant={st.variant}>{st.label}</Badge>
+                        <Button
+                          variant="secondary"
+                          size="xs"
+                          onClick={() => toggleComplete(s.id)}
+                          leftIcon={done ? <RotateCcw className="size-3.5" /> : <Check className="size-3.5" />}
+                        >
+                          {done ? 'Reopen' : 'Complete'}
+                        </Button>
+                        <RowActions
+                          label={`Actions for ${s.topic}`}
+                          items={[
+                            { id: 'edit', label: 'Edit', icon: <Pencil />, onClick: () => openEditModal(s) },
+                            {
+                              id: 'delete',
+                              label: 'Delete',
+                              icon: <Trash2 />,
+                              destructive: true,
+                              separated: true,
+                              onClick: () => deleteSession(s.id),
+                            },
+                          ]}
+                        />
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
+        </Card>
       )}
 
-      {/* Modal Dialog */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingSession ? 'Edit Study Session' : 'Create Study Session'}
-        maxWidth="md"
+        title={editingSession ? 'Edit session' : 'New study session'}
         footer={
           <>
-            <Button variant="outline" size="sm" onClick={() => setIsModalOpen(false)}>
+            <Button variant="secondary" size="sm" onClick={() => setIsModalOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" size="sm" onClick={handleFormSubmit}>
-              {editingSession ? 'Save Session' : 'Add Session'}
+            <Button size="sm" type="submit" form="session-form">
+              {editingSession ? 'Save changes' : 'Add session'}
             </Button>
           </>
         }
       >
-        <form onSubmit={handleFormSubmit} className="space-y-4">
-          <Select
-            label="Subject"
-            value={subject}
-            onChange={(e) => setSubject(e.target.value)}
-            options={[
-              { value: 'Machine Learning', label: 'Machine Learning (CS 229)' },
-              { value: 'Database Systems', label: 'Database Systems (CS 145)' },
-              { value: 'Operating Systems', label: 'Operating Systems (CS 140)' },
-              { value: 'Algorithm Analysis', label: 'Algorithm Analysis (CS 161)' },
-            ]}
-          />
-
+        <form id="session-form" onSubmit={handleFormSubmit} className="space-y-4">
+          <Select label="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} options={formOptions} />
           <Input
-            label="Topic / Focus Area"
-            placeholder="e.g. Convex Optimization & Loss Minimization"
+            label="Topic"
+            placeholder="e.g. Convex optimisation"
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             required
+            autoFocus
           />
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Input
-              label="Date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              required
-            />
-            <Input
-              label="Start Time"
-              type="time"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              required
-            />
-            <Input
-              label="End Time"
-              type="time"
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              required
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <Input label="Date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
+            <Input label="Start" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+            <Input label="End" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
           </div>
-
           <Select
-            label="Priority Level"
+            label="Priority"
             value={priority}
             onChange={(e) => setPriority(e.target.value as Priority)}
             options={[
-              { value: 'high', label: 'High Priority' },
-              { value: 'medium', label: 'Medium Priority' },
-              { value: 'low', label: 'Low Priority' },
+              { value: 'high', label: 'High' },
+              { value: 'medium', label: 'Medium' },
+              { value: 'low', label: 'Low' },
             ]}
           />
-
           <Textarea
-            label="Notes / Instructions (Optional)"
-            placeholder="Formula derivation proofs, specific textbook pages..."
+            label="Notes"
+            placeholder="Chapters, problem sets, links"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
           />
         </form>
       </Modal>
-    </div>
+    </Page>
   );
 };

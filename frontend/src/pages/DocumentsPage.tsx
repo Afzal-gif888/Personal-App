@@ -1,57 +1,89 @@
-import React, { useState } from 'react';
-import { Upload, Search, FileText, Trash2, Eye, Loader2, Filter } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { Upload, FileText, Trash2, Eye, Loader2 } from 'lucide-react';
 import { useDocuments } from '../hooks/useDocuments';
+import { documentService } from '../services/documentService';
+import { errorMessage } from '../services/api';
+import { toast } from '../stores/notificationStore';
+import { Page, PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
-import { Input } from '../components/ui/Input';
-import { Select } from '../components/ui/Select';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
+import { Progress } from '../components/ui/Progress';
 import { EmptyState } from '../components/ui/EmptyState';
+import { ConfirmDialog } from '../components/ui/ConfirmDialog';
+import { RowActions } from '../components/ui/RowActions';
+import { Table, THead, TBody, TR, TH, TD } from '../components/ui/Table';
+import { Toolbar, SearchField, FilterSelect, TableFooter } from '../components/ui/Toolbar';
+import { DesktopOnly, MobileList, MobileRow } from '../components/ui/ResponsiveList';
 import { formatDate } from '../utils/formatters';
+import { DOCUMENT_STATUS_STYLES, statusStyle } from '../utils/status';
+import { cn } from '../utils/cn';
+
+const DEFAULT_CATEGORIES = ['Machine Learning', 'Database Systems', 'Operating Systems', 'Algorithm Analysis', 'General'];
+
+// Matches the backend's allowed upload types.
+const ACCEPT = '.pdf,.txt,.md,.csv,.docx,.pptx,.xlsx,.png,.jpg,.jpeg';
 
 export const DocumentsPage: React.FC = () => {
   const { documents, uploadDocument, isUploading, deleteDocument } = useDocuments();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+  const [search, setSearch] = useState('');
+  const [category, setCategory] = useState('All');
   const [dragActive, setDragActive] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDemoUpload = async () => {
-    const sampleFiles = [
-      { name: 'CS229_Neural_Net_Optimization_Notes.pdf', size: 3450000 },
-      { name: 'DBMS_Concurrency_Control_Paper.pdf', size: 1890000 },
-      { name: 'OS_Kernel_Architecture_Guide.pdf', size: 4200000 },
-    ];
-    const picked = sampleFiles[Math.floor(Math.random() * sampleFiles.length)];
-    await uploadDocument({ file: picked, category: 'Machine Learning' });
+  const categories = Array.from(new Set([...DEFAULT_CATEGORIES, ...documents.map((d) => d.category)]));
+
+  // Files go into the subject selected in the filter, or "General" when showing all.
+  const uploadFiles = async (files: FileList | null) => {
+    for (const file of Array.from(files ?? [])) {
+      try {
+        await uploadDocument({ file, category: category === 'All' ? 'General' : category });
+      } catch {
+        // the hook shows the error; carry on with the remaining files
+      }
+    }
   };
 
-  const filteredDocs = documents.filter((d) => {
-    const matchesSearch = d.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = selectedCategory === 'All' || d.category === selectedCategory;
-    return matchesSearch && matchesCategory;
-  });
+  const openDocument = async (id: string) => {
+    try {
+      await documentService.openDocument(id);
+    } catch (err) {
+      toast.error('Could not open document', errorMessage(err));
+    }
+  };
+
+  const q = search.trim().toLowerCase();
+  const filtered = documents.filter(
+    (d) => d.name.toLowerCase().includes(q) && (category === 'All' || d.category === category)
+  );
 
   return (
-    <div className="space-y-6 text-left">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-[#EAEAEA]">
-        <div>
-          <h1 className="text-lg sm:text-xl font-bold text-[#111111] tracking-tight">Document Library</h1>
-          <p className="text-xs text-[#666666] mt-0.5">Upload syllabus PDFs, lecture slides, and notes for AI analysis</p>
-        </div>
-        <Button
-          variant="primary"
-          size="sm"
-          onClick={handleDemoUpload}
-          isLoading={isUploading}
-          leftIcon={<Upload className="w-4 h-4" />}
-        >
-          Simulate PDF Upload
-        </Button>
-      </div>
+    <Page>
+      <PageHeader
+        title="Documents"
+        description="Lecture notes, syllabi and papers the assistant can reference when planning."
+        actions={
+          <Button onClick={() => fileInputRef.current?.click()} isLoading={isUploading} leftIcon={<Upload className="size-4" />}>
+            Upload
+          </Button>
+        }
+      />
 
-      {/* Drag & Drop Upload Zone Simulation */}
-      <div
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ACCEPT}
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          uploadFiles(e.target.files);
+          e.target.value = ''; // allow picking the same file again
+        }}
+      />
+
+      <button
+        type="button"
         onDragOver={(e) => {
           e.preventDefault();
           setDragActive(true);
@@ -60,134 +92,160 @@ export const DocumentsPage: React.FC = () => {
         onDrop={(e) => {
           e.preventDefault();
           setDragActive(false);
-          handleDemoUpload();
+          uploadFiles(e.dataTransfer.files);
         }}
-        className={`p-6 rounded-lg border-2 border-dashed text-center transition-colors cursor-pointer ${
-          dragActive ? 'border-black bg-[#F7F7F7]' : 'border-[#EAEAEA] bg-[#F7F7F7]/50 hover:border-[#D1D1D1]'
-        }`}
-        onClick={handleDemoUpload}
+        onClick={() => fileInputRef.current?.click()}
+        className={cn(
+          'w-full flex flex-col sm:flex-row items-center justify-center gap-3 px-6 py-6 rounded-xl border border-dashed text-center sm:text-left transition-colors',
+          dragActive ? 'border-accent bg-accent-subtle' : 'border-line-strong bg-surface hover:bg-subtle/60'
+        )}
       >
-        <div className="flex flex-col items-center justify-center space-y-2">
-          <div className="w-10 h-10 rounded-full bg-white border border-[#EAEAEA] flex items-center justify-center">
-            <Upload className="w-5 h-5 text-[#666666]" />
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-[#111111]">
-              Click or drag PDF documents here to upload
-            </p>
-            <p className="text-[11px] text-[#8A8A8A] mt-0.5">Supports PDF files up to 25MB</p>
-          </div>
-        </div>
-      </div>
+        <span className="flex items-center justify-center size-10 rounded-lg border border-line bg-surface shadow-xs text-fg-subtle">
+          <Upload className="size-5" />
+        </span>
+        <span>
+          <span className="block text-sm font-medium text-fg">
+            <span className="text-accent">Click to upload</span> or drag and drop
+          </span>
+          <span className="block text-xs text-fg-subtle mt-0.5">PDF, Word, slides, text or images · up to 25 MB</span>
+        </span>
+      </button>
 
-      {/* Controls Bar: Search & Category Filter */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="w-full sm:w-72">
-          <Input
-            placeholder="Search documents..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            leftIcon={<Search className="w-4 h-4" />}
-          />
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <Filter className="w-4 h-4 text-[#8A8A8A] shrink-0" />
-          <Select
-            value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            options={[
-              { value: 'All', label: 'All Categories' },
-              { value: 'Machine Learning', label: 'Machine Learning' },
-              { value: 'Database Systems', label: 'Database Systems' },
-              { value: 'Operating Systems', label: 'Operating Systems' },
-              { value: 'Algorithm Analysis', label: 'Algorithm Analysis' },
-              { value: 'General', label: 'General' },
-            ]}
-          />
-        </div>
-      </div>
-
-      {/* Document Grid */}
-      {filteredDocs.length === 0 ? (
-        <EmptyState
-          icon={<FileText className="w-8 h-8 text-[#8A8A8A]" />}
-          title="No documents found"
-          description="Upload your lecture notes or syllabus PDFs to populate your document workspace."
-          actionLabel="Upload Sample PDF"
-          onAction={handleDemoUpload}
+      <Toolbar>
+        <SearchField value={search} onChange={setSearch} placeholder="Search documents" />
+        <FilterSelect
+          label="Subject"
+          value={category}
+          onChange={setCategory}
+          options={[{ value: 'All', label: 'All subjects' }, ...categories.map((c) => ({ value: c, label: c }))]}
         />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredDocs.map((doc) => (
-            <Card key={doc.id} className="space-y-3">
-              <div className="flex items-start gap-3">
-                <div className="p-2.5 rounded-lg bg-[#F7F7F7] border border-[#EAEAEA] text-[#111111] shrink-0">
-                  <FileText className="w-6 h-6 text-[#111111]" />
-                </div>
+      </Toolbar>
 
-                <div className="space-y-1 flex-1 min-w-0">
-                  <h3 className="text-xs sm:text-sm font-semibold text-[#111111] truncate" title={doc.name}>
-                    {doc.name}
-                  </h3>
-                  <div className="flex items-center gap-2 text-[11px] text-[#666666]">
-                    <span>{doc.size}</span>
-                    <span>•</span>
-                    <span>{doc.pageCount} pages</span>
-                  </div>
-                </div>
-              </div>
+      <Card flush className="overflow-hidden">
+        {filtered.length === 0 ? (
+          <EmptyState bare icon={<FileText />} title="No documents" description="Upload notes or a syllabus to get started." />
+        ) : (
+          <>
+            <MobileList>
+              {filtered.map((doc) => {
+                const s = statusStyle(DOCUMENT_STATUS_STYLES, doc.status);
+                const inFlight = doc.status === 'uploading' || doc.status === 'processing';
+                return (
+                  <MobileRow
+                    key={doc.id}
+                    leading={
+                      <span className="flex items-center justify-center size-9 rounded-md bg-danger-subtle text-danger text-2xs font-semibold">PDF</span>
+                    }
+                    title={<span className="break-all">{doc.name}</span>}
+                    subtitle={`${doc.category} · ${doc.size}${doc.pageCount ? ` · ${doc.pageCount} pages` : ''}`}
+                    meta={
+                      inFlight ? (
+                        <div className="flex items-center gap-2 w-full">
+                          <Progress value={doc.progress ?? 0} label={`${doc.name} upload progress`} />
+                          <span className="text-xs text-fg-subtle tabular">{doc.progress ?? 0}%</span>
+                        </div>
+                      ) : (
+                        <>
+                          <Badge variant={s.variant} dot>
+                            {s.label}
+                          </Badge>
+                          <span className="text-xs text-fg-subtle">{formatDate(doc.uploadedAt)}</span>
+                        </>
+                      )
+                    }
+                    actions={
+                      <RowActions
+                        label={`Actions for ${doc.name}`}
+                        items={[{ id: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, onClick: () => setDeletingId(doc.id) }]}
+                      />
+                    }
+                  />
+                );
+              })}
+            </MobileList>
+            <DesktopOnly>
+            <Table>
+              <THead>
+                <tr>
+                  <TH>Name</TH>
+                  <TH className="hidden md:table-cell">Subject</TH>
+                  <TH className="hidden lg:table-cell text-right">Size</TH>
+                  <TH className="hidden lg:table-cell text-right">Pages</TH>
+                  <TH className="hidden sm:table-cell">Uploaded</TH>
+                  <TH>Status</TH>
+                  <TH className="w-12">
+                    <span className="sr-only">Actions</span>
+                  </TH>
+                </tr>
+              </THead>
+              <TBody>
+                {filtered.map((doc) => {
+                  const s = statusStyle(DOCUMENT_STATUS_STYLES, doc.status);
+                  const inFlight = doc.status === 'uploading' || doc.status === 'processing';
+                  return (
+                    <TR key={doc.id}>
+                      <TD className="w-full max-w-0">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="flex items-center justify-center size-8 shrink-0 rounded-md bg-danger-subtle text-danger text-2xs font-semibold">
+                            PDF
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block font-medium truncate" title={doc.name}>
+                              {doc.name}
+                            </span>
+                            {inFlight && (
+                              <span className="flex items-center gap-2 mt-1">
+                                <Progress value={doc.progress ?? 0} className="w-32" label={`${doc.name} upload progress`} />
+                                <span className="text-xs text-fg-subtle tabular">{doc.progress ?? 0}%</span>
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                      </TD>
+                      <TD className="hidden md:table-cell text-fg-muted">{doc.category}</TD>
+                      <TD className="hidden lg:table-cell text-right text-fg-muted tabular">{doc.size}</TD>
+                      <TD className="hidden lg:table-cell text-right text-fg-muted tabular">{doc.pageCount ?? '—'}</TD>
+                      <TD className="hidden sm:table-cell text-fg-muted whitespace-nowrap">{formatDate(doc.uploadedAt)}</TD>
+                      <TD>
+                        <Badge variant={s.variant} dot>
+                          {inFlight && <Loader2 className="size-3 animate-spin" />}
+                          {s.label}
+                        </Badge>
+                      </TD>
+                      <TD>
+                        <RowActions
+                          label={`Actions for ${doc.name}`}
+                          items={[
+                            ...(doc.status === 'ready'
+                              ? [{ id: 'open', label: 'Open', icon: <Eye />, onClick: () => openDocument(doc.id) }]
+                              : []),
+                            { id: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, onClick: () => setDeletingId(doc.id) },
+                          ]}
+                        />
+                      </TD>
+                    </TR>
+                  );
+                })}
+              </TBody>
+            </Table>
+            </DesktopOnly>
+            <TableFooter shown={filtered.length} total={documents.length} noun="documents" />
+          </>
+        )}
+      </Card>
 
-              {/* Progress bar if uploading / processing */}
-              {doc.status !== 'ready' ? (
-                <div className="space-y-1.5 p-2 rounded bg-[#F7F7F7] border border-[#EAEAEA]">
-                  <div className="flex items-center justify-between text-[10px] font-semibold text-[#111111]">
-                    <span className="flex items-center gap-1">
-                      <Loader2 className="w-3 h-3 animate-spin text-black" />
-                      {doc.status === 'uploading' ? 'Uploading...' : 'Processing document...'}
-                    </span>
-                    <span>{doc.progress}%</span>
-                  </div>
-                  <div className="w-full bg-[#EAEAEA] h-1.5 rounded-full overflow-hidden">
-                    <div
-                      className="bg-black h-full transition-all duration-300"
-                      style={{ width: `${doc.progress}%` }}
-                    />
-                  </div>
-                </div>
-              ) : (
-                <div className="flex items-center justify-between text-[11px] text-[#8A8A8A] pt-1">
-                  <span>Uploaded {formatDate(doc.uploadedAt)}</span>
-                  <Badge variant="neutral" size="sm">
-                    {doc.category}
-                  </Badge>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between pt-2 border-t border-[#EAEAEA]">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={doc.status !== 'ready'}
-                  leftIcon={<Eye className="w-3.5 h-3.5" />}
-                  className="text-xs h-7 px-3"
-                >
-                  Open
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => deleteDocument(doc.id)}
-                  className="p-1 text-[#8A8A8A] hover:text-red-600"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
+      <ConfirmDialog
+        isOpen={!!deletingId}
+        onClose={() => setDeletingId(null)}
+        onConfirm={async () => {
+          if (deletingId) {
+            await deleteDocument(deletingId);
+            setDeletingId(null);
+          }
+        }}
+        title="Delete document?"
+        message="The assistant will no longer be able to reference this file."
+      />
+    </Page>
   );
 };
