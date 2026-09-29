@@ -1,68 +1,80 @@
 import { create } from 'zustand';
 import type { UserProfile } from '../types';
-import { storage } from '../services/storage';
 import { authService } from '../services/authService';
+import { setUnauthorizedHandler, tokenStore } from '../services/api';
 
 interface AuthState {
   user: UserProfile | null;
-  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password?: string) => Promise<void>;
-  register: (name: string, email: string) => Promise<void>;
+  /** Password step; resolves with the address the code was sent to. Doesn't sign in. */
+  login: (email: string, password: string) => Promise<string>;
+  /** Code step; signs in only if the server accepts the code. */
+  verifyOtp: (email: string, otp: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<string>;
   logout: () => Promise<void>;
   updateUser: (updates: Partial<UserProfile>) => Promise<void>;
   initialize: () => Promise<void>;
 }
 
+const hasSession = () => Boolean(tokenStore.access || tokenStore.refresh);
+
 export const useAuthStore = create<AuthState>((set) => ({
-  user: storage.getUser(),
-  token: storage.getToken(),
-  isAuthenticated: !!storage.getToken(),
-  isLoading: false,
+  user: null,
+  // Optimistic until initialize() confirms the stored session with the server.
+  isAuthenticated: hasSession(),
+  isLoading: hasSession(),
 
   initialize: async () => {
+    if (!hasSession()) {
+      set({ user: null, isAuthenticated: false, isLoading: false });
+      return;
+    }
     set({ isLoading: true });
     try {
-      const token = storage.getToken();
-      if (token) {
-        const user = storage.getUser();
-        set({ user, token, isAuthenticated: true });
-      } else {
-        set({ user: null, token: null, isAuthenticated: false });
-      }
+      const user = await authService.getCurrentUser();
+      set({ user, isAuthenticated: Boolean(user) });
+    } catch {
+      tokenStore.clear();
+      set({ user: null, isAuthenticated: false });
     } finally {
       set({ isLoading: false });
     }
   },
 
-  login: async (email: string, password?: string) => {
+  login: async (email, password) => {
     set({ isLoading: true });
     try {
-      const { token, user } = await authService.login(email, password);
-      set({ user, token, isAuthenticated: true });
+      return (await authService.login(email, password)).email;
     } finally {
       set({ isLoading: false });
     }
   },
 
-  register: async (name: string, email: string) => {
+  verifyOtp: async (email, otp) => {
+    const user = await authService.verifyOtp(email, otp);
+    set({ user, isAuthenticated: true });
+  },
+
+  register: async (name, email, password) => {
     set({ isLoading: true });
     try {
-      const { token, user } = await authService.register(name, email);
-      set({ user, token, isAuthenticated: true });
+      return (await authService.register(name, email, password)).email;
     } finally {
       set({ isLoading: false });
     }
   },
 
-  updateUser: async (updates: Partial<UserProfile>) => {
+  updateUser: async (updates) => {
     const updated = await authService.updateUserProfile(updates);
     set({ user: updated });
   },
 
   logout: async () => {
     await authService.logout();
-    set({ user: null, token: null, isAuthenticated: false });
+    set({ user: null, isAuthenticated: false });
   },
 }));
+
+// An expired session that can't be refreshed signs the user out (AppLayout then redirects to /login).
+setUnauthorizedHandler(() => useAuthStore.setState({ user: null, isAuthenticated: false }));

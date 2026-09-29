@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus, Sparkles, Pencil, Trash2, BookOpen, Check, RotateCcw } from 'lucide-react';
 import { useStudyPlan } from '../hooks/useStudyPlan';
+import { useSubjects } from '../hooks/useSubjects';
 import type { StudySession, Priority } from '../types';
 import { Page, PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
@@ -19,12 +20,8 @@ import { formatDayLabel, formatTime, todayISO } from '../utils/formatters';
 import { PRIORITY_STYLES, SESSION_STATUS_STYLES, statusStyle } from '../utils/status';
 import { cn } from '../utils/cn';
 
-const SUBJECTS = [
-  { value: 'Machine Learning', label: 'Machine Learning (CS 229)' },
-  { value: 'Database Systems', label: 'Database Systems (CS 145)' },
-  { value: 'Operating Systems', label: 'Operating Systems (CS 140)' },
-  { value: 'Algorithm Analysis', label: 'Algorithm Analysis (CS 161)' },
-];
+// Used only until the user has added subjects of their own.
+const FALLBACK_SUBJECT = { value: 'General', label: 'General' };
 
 function sessionHours(s: StudySession): number {
   const [sh, sm] = s.startTime.split(':').map(Number);
@@ -37,12 +34,18 @@ type View = 'upcoming' | 'completed' | 'all';
 export const StudyPlanPage: React.FC = () => {
   const { sessions, createSession, updateSession, toggleComplete, deleteSession, generateAIPlan, isGeneratingAI } =
     useStudyPlan();
+  const { subjects } = useSubjects();
+  const subjectOptions = subjects.length
+    ? subjects.map((s) => ({ value: s.name, label: s.code ? `${s.name} (${s.code})` : s.name }))
+    : [FALLBACK_SUBJECT];
+  const defaultSubject = subjectOptions[0].value;
 
   const [view, setView] = useState<View>('upcoming');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSession, setEditingSession] = useState<StudySession | null>(null);
 
-  const [subject, setSubject] = useState(SUBJECTS[0].value);
+  const [subject, setSubject] = useState('');
+  const [planSubject, setPlanSubject] = useState('');
   const [topic, setTopic] = useState('');
   const [date, setDate] = useState(todayISO());
   const [startTime, setStartTime] = useState('18:00');
@@ -52,7 +55,7 @@ export const StudyPlanPage: React.FC = () => {
 
   const openCreateModal = () => {
     setEditingSession(null);
-    setSubject(SUBJECTS[0].value);
+    setSubject(defaultSubject);
     setTopic('');
     setDate(todayISO());
     setStartTime('18:00');
@@ -86,7 +89,12 @@ export const StudyPlanPage: React.FC = () => {
     setIsModalOpen(false);
   };
 
-  const handleGenerateAI = () => generateAIPlan({ subject: 'Machine Learning', hours: 4 });
+  const handleGenerateAI = () => generateAIPlan({ subject: planSubject || defaultSubject, hours: 4 });
+  // Keep a session's own subject selectable even if it isn't in the subject list.
+  const formOptions =
+    subject && !subjectOptions.some((o) => o.value === subject)
+      ? [...subjectOptions, { value: subject, label: subject }]
+      : subjectOptions;
 
   const scheduled = sessions.filter((s) => s.status === 'scheduled');
   const completed = sessions.filter((s) => s.status === 'completed');
@@ -109,6 +117,12 @@ export const StudyPlanPage: React.FC = () => {
         description="Revision sessions you've scheduled or approved from the assistant."
         actions={
           <>
+            <Select
+              aria-label="Subject for the generated plan"
+              value={planSubject || defaultSubject}
+              onChange={(e) => setPlanSubject(e.target.value)}
+              options={subjectOptions}
+            />
             <Button
               variant="secondary"
               onClick={handleGenerateAI}
@@ -233,7 +247,7 @@ export const StudyPlanPage: React.FC = () => {
         }
       >
         <form id="session-form" onSubmit={handleFormSubmit} className="space-y-4">
-          <Select label="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} options={SUBJECTS} />
+          <Select label="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} options={formOptions} />
           <Input
             label="Topic"
             placeholder="e.g. Convex optimisation"

@@ -1,0 +1,9 @@
+{
+  "venvPath": "backend",
+  "venv": ".venv",
+  "exclude": ["**/node_modules", "**/__pycache__", "**/.*", "frontend", "dist"],
+  "executionEnvironments": [
+    { "root": "agent-core", "extraPaths": ["agent-core/.venv/Lib/site-packages"] },
+    { "root": "backend" }
+  ]
+}

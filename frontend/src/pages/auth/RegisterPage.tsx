@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { AuthLayout } from './AuthLayout';
+import { errorMessage } from '../../services/api';
 
 export const RegisterPage: React.FC = () => {
   const [name, setName] = useState('');
@@ -25,8 +26,12 @@ export const RegisterPage: React.FC = () => {
       return;
     }
     setError('');
-    await register(name, email);
-    navigate('/dashboard', { replace: true });
+    try {
+      await register(name, email, password);
+      navigate('/login', { replace: true, state: { registered: true } });
+    } catch (err) {
+      setError(errorMessage(err, 'Could not create the account.'));
+    }
   };
 
   return (

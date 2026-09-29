@@ -67,7 +67,7 @@ export const AgentRunsPage: React.FC = () => {
                     key={run.id}
                     onClick={() => openRun(run.id)}
                     title={run.request}
-                    subtitle={`${run.runNumber} · ${run.steps.length} steps · ${run.duration} · ${formatRelativeTime(run.startedAt)}`}
+                    subtitle={`${run.runNumber} · ${run.toolsUsed.length} tools · ${run.duration} · ${formatRelativeTime(run.startedAt)}`}
                     meta={
                       <Badge variant={s.variant} dot>
                         {s.label}
@@ -99,7 +99,7 @@ export const AgentRunsPage: React.FC = () => {
                       <TD className="font-mono text-xs text-fg-muted">{run.runNumber}</TD>
                       <TD className="w-full max-w-0">
                         <p className="font-medium truncate">{run.request}</p>
-                        <p className="text-xs text-fg-subtle mt-0.5">{run.steps.length} steps</p>
+                        <p className="text-xs text-fg-subtle mt-0.5">{run.toolsUsed.length} tools</p>
                       </TD>
                       <TD>
                         <Badge variant={s.variant} dot>

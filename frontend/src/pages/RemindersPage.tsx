@@ -25,6 +25,7 @@ const REPEAT_LABELS: Record<ReminderRepeat, string> = {
   daily: 'Daily',
   weekly: 'Weekly',
   monthly: 'Monthly',
+  yearly: 'Yearly',
 };
 
 export const RemindersPage: React.FC = () => {

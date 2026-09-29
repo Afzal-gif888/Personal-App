@@ -1,8 +1,10 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { useAuthStore } from './stores/authStore';
+import { toast } from './stores/notificationStore';
+import { ApiError, errorMessage } from './services/api';
 
 // Layouts
 import { AppLayout } from './components/layout/AppLayout';
@@ -12,6 +14,8 @@ import { SettingsLayout } from './pages/settings/SettingsLayout';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
+import { VerifyOtpPage } from './pages/auth/VerifyOtpPage';
 
 // Main Application Pages
 import { DashboardPage } from './pages/DashboardPage';
@@ -26,6 +30,7 @@ import { ApprovalsPage } from './pages/ApprovalsPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { BillsPage } from './pages/BillsPage';
 import { ExpensesPage } from './pages/ExpensesPage';
+import { BudgetsPage } from './pages/BudgetsPage';
 import { GoalsPage } from './pages/GoalsPage';
 
 // Settings Pages
@@ -34,10 +39,17 @@ import { NotificationsPage } from './pages/settings/NotificationsPage';
 import { PreferencesPage } from './pages/settings/PreferencesPage';
 
 const queryClient = new QueryClient({
+  // Hooks with their own onError show a specific message; everything else gets this one.
+  mutationCache: new MutationCache({
+    onError: (err, _vars, _ctx, mutation) => {
+      if (!mutation.options.onError) toast.error('Something went wrong', errorMessage(err));
+    },
+  }),
   defaultOptions: {
     queries: {
       refetchOnWindowFocus: false,
-      retry: 1,
+      // Retry network blips and server errors once, but not 4xx responses.
+      retry: (count, err) => count < 1 && !(err instanceof ApiError && err.status >= 400 && err.status < 500),
       staleTime: 1000 * 60 * 5,
     },
   },
@@ -58,6 +70,8 @@ export const App: React.FC = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/verify-otp" element={<VerifyOtpPage />} />
 
           {/* Protected App Routes */}
           <Route element={<AppLayout />}>
@@ -73,6 +87,7 @@ export const App: React.FC = () => {
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/bills" element={<BillsPage />} />
             <Route path="/expenses" element={<ExpensesPage />} />
+            <Route path="/budgets" element={<BudgetsPage />} />
             <Route path="/goals" element={<GoalsPage />} />
 
             {/* Settings Sub-routes */}

@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { chatService, CHAT_UI_STORAGE_KEYS } from '../services/chatService';
 import type { Conversation, ChatMessage } from '../types';
 import { toast } from '../stores/notificationStore';
+import { errorMessage } from '../services/api';
+import { invalidateAfterApproval } from './useApprovals';
 
 export function useChat() {
   const queryClient = useQueryClient();
@@ -74,8 +76,9 @@ export function useChat() {
       queryClient.invalidateQueries({ queryKey: ['chatMessages', conversationId] });
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
       queryClient.invalidateQueries({ queryKey: ['agentRuns'] });
+      queryClient.invalidateQueries({ queryKey: ['approvals'] });
     },
-    onError: () => toast.error('Failed to send message'),
+    onError: (err) => toast.error('Failed to send message', errorMessage(err)),
   });
 
   // Mutation: Retry message
@@ -114,19 +117,22 @@ export function useChat() {
     onError: () => toast.error('Failed to delete conversation'),
   });
 
-  // Mutation: Handle action decision (approve/reject)
+  // Mutation: Approve or reject one proposed action
   const actionDecisionMutation = useMutation({
-    mutationFn: ({ messageId, decision }: { messageId: string; decision: 'approved' | 'rejected' }) =>
-      chatService.handleActionCardDecision(messageId, decision),
+    mutationFn: ({ approvalId, decision }: { approvalId: string; decision: 'approved' | 'rejected' }) =>
+      chatService.decideAction(approvalId, decision),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['chatMessages', activeConversationId] });
-      queryClient.invalidateQueries({ queryKey: ['reminders'] });
-      queryClient.invalidateQueries({ queryKey: ['studySessions'] });
-      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      invalidateAfterApproval(queryClient);
       toast.success(
         variables.decision === 'approved' ? 'Action Approved' : 'Action Rejected',
-        variables.decision === 'approved' ? 'Resource created in your workspace.' : 'Action cancelled.'
+        variables.decision === 'approved' ? 'Saved to your workspace.' : 'No changes were made.'
       );
+    },
+    onError: (err) => {
+      // e.g. the approval expired: refresh so the card shows its real status
+      queryClient.invalidateQueries({ queryKey: ['chatMessages', activeConversationId] });
+      toast.error('Could not complete the action', errorMessage(err));
     },
   });
 

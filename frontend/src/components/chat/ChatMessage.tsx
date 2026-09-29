@@ -8,7 +8,7 @@ import { cn } from '../../utils/cn';
 
 export interface ChatMessageProps {
   message: ChatMessageType;
-  onActionDecision: (messageId: string, decision: 'approved' | 'rejected') => void;
+  onActionDecision: (approvalId: string, decision: 'approved' | 'rejected') => void;
   onRetry?: (messageId: string) => void;
   isDeciding?: boolean;
 }
@@ -30,18 +30,15 @@ export const ChatMessageItem: React.FC<ChatMessageProps> = ({ message, onActionD
   const [copied, setCopied] = useState(false);
   const [showSteps, setShowSteps] = useState(false);
 
-  const role = message.role || message.sender || 'assistant';
-  const isUser = role === 'user';
-  const text = message.content || message.text || '';
-  const time =
-    message.timestamp ||
-    (message.created_at
-      ? new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(message.created_at))
-      : '');
+  const isUser = message.role === 'user';
+  const text = message.content;
+  const time = message.createdAt
+    ? new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(message.createdAt))
+    : '';
 
-  const actionCard = message.metadata?.actionCard || message.actionCard;
-  const steps = message.metadata?.steps || message.steps || [];
-  const isError = message.isError || message.metadata?.status === 'error';
+  const actions = message.metadata?.actions ?? [];
+  const steps = message.metadata?.steps ?? [];
+  const isError = message.metadata?.status === 'error';
 
   const handleCopy = () => {
     navigator.clipboard.writeText(text);
@@ -92,7 +89,7 @@ export const ChatMessageItem: React.FC<ChatMessageProps> = ({ message, onActionD
         {isError && (
           <p className="flex items-center gap-1.5 text-sm text-danger mb-1">
             <AlertCircle className="size-4" />
-            The request couldn't be completed.
+            {message.metadata?.error || "The request couldn't be completed."}
           </p>
         )}
         <div className="text-sm text-fg-muted leading-relaxed whitespace-pre-wrap break-words">{renderInline(text)}</div>
@@ -117,7 +114,7 @@ export const ChatMessageItem: React.FC<ChatMessageProps> = ({ message, onActionD
                     </li>
                   ))}
                 </ol>
-                <Link to="/agent-runs" className="inline-block mt-2.5 text-xs font-medium text-accent hover:text-accent-hover">
+                <Link to={message.agentRunId ? `/agent-runs/${message.agentRunId}` : '/agent-runs'} className="inline-block mt-2.5 text-xs font-medium text-accent hover:text-accent-hover">
                   View in Agent activity
                 </Link>
               </div>
@@ -125,9 +122,9 @@ export const ChatMessageItem: React.FC<ChatMessageProps> = ({ message, onActionD
           </div>
         )}
 
-        {actionCard && (
-          <ActionCard card={actionCard} messageId={message.id} onDecision={onActionDecision} isPending={isDeciding} />
-        )}
+        {actions.map((card) => (
+          <ActionCard key={card.approvalId} card={card} onDecision={onActionDecision} isPending={isDeciding} />
+        ))}
       </div>
     </div>
   );

@@ -21,8 +21,7 @@ export const LogoIcon: React.FC<{ size?: number; className?: string }> = ({ size
     aria-hidden="true"
   >
     <rect width="32" height="32" rx="8" fill="var(--color-accent)" />
-    <path d="M10 22.5 16 9.5l6 13" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
-    <path d="M12.6 17.5h6.8" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" />
+    <path d="M12 23V9.5h4.75a4.25 4.25 0 0 1 0 8.5H12" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 );
 
@@ -33,7 +32,7 @@ export const Logo: React.FC<LogoProps> = ({ size = 'md', withText = false, subte
     <div className={cn('flex items-center gap-2.5 min-w-0', className)}>
       <LogoIcon size={SIZE_MAP[size]} />
       <div className="flex flex-col min-w-0 leading-tight">
-        <span className="font-semibold text-sm text-fg truncate">AgentOS</span>
+        <span className="font-semibold text-sm text-fg truncate">It's Personal</span>
         {subtext && <span className="text-xs text-fg-subtle truncate">{subtext}</span>}
       </div>
     </div>

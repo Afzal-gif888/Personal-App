@@ -1,38 +1,67 @@
-import type { Bill } from '../types';
-import { storage } from './storage';
+import type { Bill, BillStatus } from '../types';
+import { api } from './api';
 
-const delay = (ms = 150) => new Promise((resolve) => setTimeout(resolve, ms));
+interface BillOut {
+  id: string;
+  title: string;
+  category: string;
+  amount: number;
+  dueDate: string;
+  status: BillStatus | 'cancelled';
+  recurring: boolean;
+  frequency: string | null;
+  paymentMethod: string | null;
+  notes: string | null;
+}
+
+const toBill = (b: BillOut): Bill => ({
+  id: b.id,
+  title: b.title,
+  amount: b.amount,
+  dueDate: b.dueDate,
+  category: b.category,
+  status: b.status === 'cancelled' ? 'paid' : b.status,
+  isRecurring: b.recurring,
+  frequency: b.frequency ?? undefined,
+  paymentMethod: b.paymentMethod ?? undefined,
+  notes: b.notes ?? undefined,
+});
+
+function toBody(data: Partial<Bill>) {
+  const body: Record<string, unknown> = {};
+  if (data.title !== undefined) body.title = data.title;
+  if (data.amount !== undefined) body.amount = data.amount;
+  if (data.dueDate !== undefined) body.dueDate = data.dueDate;
+  if (data.category !== undefined) body.category = data.category;
+  if (data.isRecurring !== undefined) body.recurring = data.isRecurring;
+  if (data.frequency !== undefined) body.frequency = data.frequency || null;
+  if (data.paymentMethod !== undefined) body.paymentMethod = data.paymentMethod || null;
+  if (data.notes !== undefined) body.notes = data.notes || null;
+  return body;
+}
 
 export const billService = {
   async getBills(): Promise<Bill[]> {
-    await delay(150);
-    return storage.getBills();
+    return (await api.get<BillOut[]>('/bills')).map(toBill);
   },
 
+  // The server derives status from the due date, so it isn't sent on create.
   async createBill(data: Omit<Bill, 'id'>): Promise<Bill> {
-    await delay(200);
-    const bills = storage.getBills();
-    const newBill: Bill = { ...data, id: `bill-${Date.now()}` };
-    storage.setBills([...bills, newBill]);
-    return newBill;
+    return toBill(await api.post<BillOut>('/bills', toBody(data)));
   },
 
   async updateBill(id: string, data: Partial<Bill>): Promise<Bill> {
-    await delay(200);
-    const bills = storage.getBills();
-    const updated = bills.map((b) => (b.id === id ? { ...b, ...data } : b));
-    storage.setBills(updated);
-    const found = updated.find((b) => b.id === id);
-    if (!found) throw new Error('Bill not found');
-    return found;
+    const body = toBody(data);
+    if (data.status !== undefined) body.status = data.status;
+    return toBill(await api.patch<BillOut>(`/bills/${id}`, body));
   },
 
+  /** Records a payment; a recurring bill also gets its next bill created. */
   async markAsPaid(id: string): Promise<Bill> {
-    return billService.updateBill(id, { status: 'paid' });
+    return toBill((await api.post<{ bill: BillOut }>(`/bills/${id}/pay`)).bill);
   },
 
   async deleteBill(id: string): Promise<void> {
-    await delay(150);
-    storage.setBills(storage.getBills().filter((b) => b.id !== id));
+    await api.delete(`/bills/${id}`);
   },
 };

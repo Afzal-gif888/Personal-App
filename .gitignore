@@ -30,3 +30,7 @@ __pycache__/
 *.njsproj
 *.sln
 *.sw?
+
+# start.ps1 process ids
+.agentos-pids
+logs/

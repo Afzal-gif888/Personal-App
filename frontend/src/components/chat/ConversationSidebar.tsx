@@ -50,7 +50,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
     conversations
       .filter((c) => !q || c.title.toLowerCase().includes(q))
       .forEach((c) => {
-        (result[groupFor(c.updated_at || c.created_at)] ||= []).push(c);
+        (result[groupFor(c.updatedAt || c.createdAt)] ||= []).push(c);
       });
     return result;
   }, [conversations, query]);

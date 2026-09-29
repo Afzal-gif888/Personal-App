@@ -6,48 +6,49 @@ import { Button } from '../../components/ui/Button';
 import { Checkbox } from '../../components/ui/Checkbox';
 import { Alert } from '../../components/ui/Alert';
 import { AuthLayout } from './AuthLayout';
-
-const DEMO = { email: 'student@agentos.demo', password: 'Demo123!' };
+import { errorMessage } from '../../services/api';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
+  const [error, setError] = useState('');
   const { login, isLoading } = useAuthStore();
   const navigate = useNavigate();
   const location = useLocation();
-  const redirectTo = (location.state as { from?: string } | null)?.from || '/dashboard';
+  const navState = location.state as { from?: string; passwordReset?: boolean; registered?: boolean } | null;
+  const redirectTo = navState?.from || '/dashboard';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
-    await login(email, password);
-    navigate(redirectTo, { replace: true });
+    setError('');
+    try {
+      const sentTo = await login(email, password);
+      navigate('/verify-otp', { state: { email: sentTo, from: redirectTo } });
+    } catch (err) {
+      setError(errorMessage(err, 'Sign in failed.'));
+    }
   };
 
   return (
     <AuthLayout title="Sign in" description="Welcome back. Sign in to your workspace.">
-      <Alert
-        variant="info"
-        title="Demo account"
-        className="mb-6"
-        action={
-          <Button
-            variant="secondary"
-            size="xs"
-            onClick={() => {
-              setEmail(DEMO.email);
-              setPassword(DEMO.password);
-            }}
-          >
-            Use
-          </Button>
-        }
-      >
-        <span className="font-mono text-xs">{DEMO.email}</span>
-      </Alert>
-
       <form onSubmit={handleSubmit} className="space-y-4">
+        {navState?.registered && !error && (
+          <Alert variant="success" title="Account created">
+            Sign in to continue. We'll email you a 6-digit code.
+          </Alert>
+        )}
+        {navState?.passwordReset && !error && (
+          <Alert variant="success" title="Password changed">
+            Sign in with your new password.
+          </Alert>
+        )}
+        {error && (
+          <Alert variant="error" title="Couldn't sign in">
+            {error}
+          </Alert>
+        )}
         <Input
           label="Email"
           type="email"
@@ -82,7 +83,7 @@ export const LoginPage: React.FC = () => {
       </form>
 
       <p className="mt-6 text-center text-sm text-fg-subtle">
-        New to AgentOS?{' '}
+        New to It's Personal?{' '}
         <Link to="/register" className="font-medium text-accent hover:text-accent-hover">
           Create an account
         </Link>

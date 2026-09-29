@@ -1,33 +1,55 @@
 import React, { useState } from 'react';
-import { storage } from '../../services/storage';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { userService } from '../../services/userService';
+import { errorMessage } from '../../services/api';
+import type { PreferenceSettings } from '../../types';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import { toast } from '../../stores/notificationStore';
 import { SettingsSection } from './SettingsLayout';
 
-export const PreferencesPage: React.FC = () => {
-  const initial = storage.getPreferences();
-  const [dailyGoalHours, setDailyGoalHours] = useState(initial.dailyStudyGoalHours);
-  const [preferredStudyHours, setPreferredStudyHours] = useState(initial.preferredStudyHours);
-  const [defaultReminderTime, setDefaultReminderTime] = useState(initial.defaultReminderTime);
-  const [timezone, setTimezone] = useState(initial.timezone);
-  const [isSaving, setIsSaving] = useState(false);
+const TIMEZONES = [
+  { value: 'Asia/Kolkata', label: 'India Standard Time (IST)' },
+  { value: 'Europe/London', label: 'London (GMT/BST)' },
+  { value: 'America/New_York', label: 'Eastern Time (ET)' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+  { value: 'UTC', label: 'UTC' },
+];
 
-  const handleSave = (e: React.FormEvent) => {
+export const PreferencesPage: React.FC = () => {
+  const queryClient = useQueryClient();
+  const { data: saved } = useQuery({ queryKey: ['preferences'], queryFn: userService.getPreferences });
+  // Unsaved edits; until the user changes something the form shows the saved values.
+  const [draft, setDraft] = useState<PreferenceSettings | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const form = draft ?? saved ?? null;
+
+  const update = (patch: Partial<PreferenceSettings>) => setDraft((d) => {
+    const base = d ?? saved;
+    return base ? { ...base, ...patch } : d;
+  });
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form) return;
     setIsSaving(true);
-    storage.setPreferences({
-      dailyStudyGoalHours: Number(dailyGoalHours),
-      preferredStudyHours,
-      defaultReminderTime,
-      timezone,
-    });
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      queryClient.setQueryData(['preferences'], await userService.updatePreferences(form));
+      setDraft(null);
       toast.success('Preferences saved');
-    }, 200);
+    } catch (err) {
+      toast.error('Could not save preferences', errorMessage(err));
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  // Keep a timezone set elsewhere (e.g. at sign-up) selectable.
+  const timezones =
+    form && !TIMEZONES.some((t) => t.value === form.timezone)
+      ? [{ value: form.timezone, label: form.timezone }, ...TIMEZONES]
+      : TIMEZONES;
 
   return (
     <form onSubmit={handleSave}>
@@ -35,7 +57,7 @@ export const PreferencesPage: React.FC = () => {
         title="Assistant defaults"
         description="Used when the assistant schedules study sessions and reminders for you."
         footer={
-          <Button type="submit" size="sm" isLoading={isSaving}>
+          <Button type="submit" size="sm" isLoading={isSaving} disabled={!form}>
             Save changes
           </Button>
         }
@@ -45,35 +67,35 @@ export const PreferencesPage: React.FC = () => {
             <Input
               label="Daily study goal (hours)"
               type="number"
-              min="1"
+              min="0"
               max="16"
-              value={dailyGoalHours}
-              onChange={(e) => setDailyGoalHours(Number(e.target.value))}
+              step="0.5"
+              value={form?.dailyStudyGoalHours ?? ''}
+              disabled={!form}
+              onChange={(e) => update({ dailyStudyGoalHours: Number(e.target.value) })}
             />
             <Input
               label="Default reminder time"
               type="time"
-              value={defaultReminderTime}
-              onChange={(e) => setDefaultReminderTime(e.target.value)}
+              value={form?.defaultReminderTime ?? ''}
+              disabled={!form}
+              onChange={(e) => update({ defaultReminderTime: e.target.value })}
             />
           </div>
           <Input
             label="Preferred study window"
-            value={preferredStudyHours}
-            onChange={(e) => setPreferredStudyHours(e.target.value)}
+            value={form?.preferredStudyHours ?? ''}
+            disabled={!form}
+            onChange={(e) => update({ preferredStudyHours: e.target.value })}
             placeholder="18:00 – 22:00"
             helperText="The assistant schedules new sessions inside this window."
           />
           <Select
             label="Time zone"
-            value={timezone}
-            onChange={(e) => setTimezone(e.target.value)}
-            options={[
-              { value: 'Asia/Kolkata (IST)', label: 'India Standard Time (IST)' },
-              { value: 'Europe/London (GMT)', label: 'London (GMT)' },
-              { value: 'America/New_York (EST)', label: 'Eastern Time (EST)' },
-              { value: 'America/Los_Angeles (PST)', label: 'Pacific Time (PST)' },
-            ]}
+            value={form?.timezone ?? ''}
+            disabled={!form}
+            onChange={(e) => update({ timezone: e.target.value })}
+            options={timezones}
           />
         </div>
       </SettingsSection>

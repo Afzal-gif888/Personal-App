@@ -1,6 +1,20 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, BookOpen, CheckSquare, ShieldCheck, Check, X, ArrowRight, CircleCheck, CircleX } from 'lucide-react';
+import {
+  Bell,
+  BookOpen,
+  CalendarDays,
+  CheckSquare,
+  PiggyBank,
+  Receipt,
+  ShieldCheck,
+  Wallet,
+  Check,
+  X,
+  ArrowRight,
+  CircleCheck,
+  CircleX,
+} from 'lucide-react';
 import type { ActionCardData, ActionCardType } from '../../types';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -8,23 +22,40 @@ import { humanizeKey, formatDetailValue } from '../../utils/formatters';
 
 export interface ActionCardProps {
   card: ActionCardData;
-  messageId: string;
-  onDecision: (messageId: string, decision: 'approved' | 'rejected') => void;
+  onDecision: (approvalId: string, decision: 'approved' | 'rejected') => void;
   isPending?: boolean;
 }
 
-/** Where an approved action lands in the workspace. */
-const DESTINATIONS: Record<ActionCardType, { label: string; module: string; path: string; icon: React.ReactNode }> = {
-  create_reminder: { label: 'Create reminder', module: 'Reminders', path: '/reminders', icon: <Bell /> },
-  study_plan_generated: { label: 'Add study sessions', module: 'Study plan', path: '/study-plan', icon: <BookOpen /> },
-  task_created: { label: 'Create task', module: 'Tasks', path: '/tasks', icon: <CheckSquare /> },
-  approval_required: { label: 'Action', module: 'Approvals', path: '/approvals', icon: <ShieldCheck /> },
+interface Destination {
+  module: string;
+  path: string;
+  icon: React.ReactNode;
+}
+
+/** Where an approved action lands in the workspace, by agent tool. */
+const DESTINATIONS: Record<ActionCardType, Destination> = {
+  create_task: { module: 'Tasks', path: '/tasks', icon: <CheckSquare /> },
+  complete_task: { module: 'Tasks', path: '/tasks', icon: <CheckSquare /> },
+  create_reminder: { module: 'Reminders', path: '/reminders', icon: <Bell /> },
+  create_event: { module: 'Calendar', path: '/calendar', icon: <CalendarDays /> },
+  create_study_plan: { module: 'Study plan', path: '/study-plan', icon: <BookOpen /> },
+  log_expense: { module: 'Expenses', path: '/expenses', icon: <Wallet /> },
+  mark_bill_paid: { module: 'Bills & payments', path: '/bills', icon: <Receipt /> },
+  set_budget: { module: 'Budgets', path: '/budgets', icon: <PiggyBank /> },
 };
 
-export const ActionCard: React.FC<ActionCardProps> = ({ card, messageId, onDecision, isPending = false }) => {
-  const dest = DESTINATIONS[card.type] ?? DESTINATIONS.approval_required;
+const FALLBACK: Destination = { module: 'Approvals', path: '/approvals', icon: <ShieldCheck /> };
+
+const CLOSED_LABELS: Record<string, string> = {
+  rejected: 'Rejected',
+  expired: 'Expired',
+  cancelled: 'Cancelled',
+};
+
+export const ActionCard: React.FC<ActionCardProps> = ({ card, onDecision, isPending = false }) => {
+  const dest = DESTINATIONS[card.type as ActionCardType] ?? FALLBACK;
   const isOpen = card.status === 'pending';
-  const approved = card.status === 'approved' || card.status === 'executed';
+  const approved = card.status === 'approved';
 
   return (
     <div className="mt-3 w-full max-w-lg rounded-xl border border-line bg-surface shadow-xs overflow-hidden">
@@ -33,11 +64,11 @@ export const ActionCard: React.FC<ActionCardProps> = ({ card, messageId, onDecis
           {dest.icon}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-fg-subtle">Proposed action · {dest.label}</p>
+          <p className="text-xs font-medium text-fg-subtle">Proposed action · {card.label}</p>
           <p className="text-sm font-semibold text-fg truncate">{card.title}</p>
         </div>
         <Badge variant={isOpen ? 'warning' : approved ? 'success' : 'neutral'} dot>
-          {isOpen ? 'Needs approval' : approved ? 'Approved' : 'Rejected'}
+          {isOpen ? 'Needs approval' : approved ? 'Approved' : CLOSED_LABELS[card.status] ?? 'Closed'}
         </Badge>
       </div>
 
@@ -60,7 +91,7 @@ export const ActionCard: React.FC<ActionCardProps> = ({ card, messageId, onDecis
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => onDecision(messageId, 'rejected')}
+                onClick={() => onDecision(card.approvalId, 'rejected')}
                 disabled={isPending}
                 leftIcon={<X className="size-4" />}
               >
@@ -68,7 +99,7 @@ export const ActionCard: React.FC<ActionCardProps> = ({ card, messageId, onDecis
               </Button>
               <Button
                 size="sm"
-                onClick={() => onDecision(messageId, 'approved')}
+                onClick={() => onDecision(card.approvalId, 'approved')}
                 isLoading={isPending}
                 leftIcon={<Check className="size-4" />}
               >
@@ -93,7 +124,7 @@ export const ActionCard: React.FC<ActionCardProps> = ({ card, messageId, onDecis
         ) : (
           <p className="inline-flex items-center gap-1.5 text-sm text-fg-subtle">
             <CircleX className="size-4" />
-            Rejected — no changes were made
+            {CLOSED_LABELS[card.status] ?? 'Closed'} — no changes were made
           </p>
         )}
       </div>

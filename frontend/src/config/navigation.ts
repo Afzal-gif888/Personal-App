@@ -11,6 +11,7 @@ import {
   FileText,
   Receipt,
   Wallet,
+  PiggyBank,
   Activity,
   Settings,
 } from 'lucide-react';
@@ -77,6 +78,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { id: 'bills', label: 'Bills & payments', path: '/bills', icon: Receipt, description: 'Upcoming bills and instalment plans' },
       { id: 'expenses', label: 'Expenses', path: '/expenses', icon: Wallet, description: 'Day-to-day spending' },
+      { id: 'budgets', label: 'Budgets', path: '/budgets', icon: PiggyBank, description: 'Monthly spending limits' },
     ],
   },
   {

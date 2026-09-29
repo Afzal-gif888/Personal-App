@@ -6,11 +6,11 @@ import { Button } from '../../components/ui/Button';
 import { Avatar } from '../../components/ui/Avatar';
 import { toast } from '../../stores/notificationStore';
 import { SettingsSection } from './SettingsLayout';
+import { errorMessage } from '../../services/api';
 
 export const ProfilePage: React.FC = () => {
   const { user, updateUser } = useAuthStore();
   const [name, setName] = useState(user?.name ?? '');
-  const [email, setEmail] = useState(user?.email ?? '');
   const [university, setUniversity] = useState(user?.university ?? '');
   const [major, setMajor] = useState(user?.major ?? '');
   const [academicYear, setAcademicYear] = useState(user?.academicYear ?? '');
@@ -20,24 +20,29 @@ export const ProfilePage: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    await updateUser({ name, email, university, major, academicYear, bio });
-    setIsSaving(false);
-    toast.success('Profile updated');
+    try {
+      await updateUser({ name, university, major, academicYear, bio });
+      toast.success('Profile updated');
+    } catch (err) {
+      toast.error('Could not update profile', errorMessage(err));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <form onSubmit={handleSave} className="space-y-6">
-      <SettingsSection title="Personal information" description="How you appear across AgentOS.">
+      <SettingsSection title="Personal information" description="How you appear across It's Personal.">
         <div className="flex items-center gap-4 mb-6">
           <Avatar name={name || 'User'} src={user?.avatarUrl} size="lg" />
           <div>
             <p className="text-sm font-medium text-fg">{name || 'Your name'}</p>
-            <p className="text-sm text-fg-subtle">{email}</p>
+            <p className="text-sm text-fg-subtle">{user?.email}</p>
           </div>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input label="Full name" value={name} onChange={(e) => setName(e.target.value)} required />
-          <Input label="Email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <Input label="Email" type="email" value={user?.email ?? ''} readOnly disabled helperText="Your sign-in email can't be changed here." />
         </div>
       </SettingsSection>
 

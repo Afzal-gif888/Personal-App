@@ -1,6 +1,9 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Upload, FileText, Trash2, Eye, Loader2 } from 'lucide-react';
 import { useDocuments } from '../hooks/useDocuments';
+import { documentService } from '../services/documentService';
+import { errorMessage } from '../services/api';
+import { toast } from '../stores/notificationStore';
 import { Page, PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
@@ -16,13 +19,10 @@ import { formatDate } from '../utils/formatters';
 import { DOCUMENT_STATUS_STYLES, statusStyle } from '../utils/status';
 import { cn } from '../utils/cn';
 
-const CATEGORIES = ['Machine Learning', 'Database Systems', 'Operating Systems', 'Algorithm Analysis', 'General'];
+const DEFAULT_CATEGORIES = ['Machine Learning', 'Database Systems', 'Operating Systems', 'Algorithm Analysis', 'General'];
 
-const SAMPLE_FILES = [
-  { name: 'CS229_Neural_Net_Optimization_Notes.pdf', size: 3450000 },
-  { name: 'DBMS_Concurrency_Control_Paper.pdf', size: 1890000 },
-  { name: 'OS_Kernel_Architecture_Guide.pdf', size: 4200000 },
-];
+// Matches the backend's allowed upload types.
+const ACCEPT = '.pdf,.txt,.md,.csv,.docx,.pptx,.xlsx,.png,.jpg,.jpeg';
 
 export const DocumentsPage: React.FC = () => {
   const { documents, uploadDocument, isUploading, deleteDocument } = useDocuments();
@@ -30,11 +30,27 @@ export const DocumentsPage: React.FC = () => {
   const [category, setCategory] = useState('All');
   const [dragActive, setDragActive] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Mock upload: the service simulates progress; swap for a real multipart upload with the backend
-  const handleUpload = async () => {
-    const picked = SAMPLE_FILES[Math.floor(Math.random() * SAMPLE_FILES.length)];
-    await uploadDocument({ file: picked, category: 'Machine Learning' });
+  const categories = Array.from(new Set([...DEFAULT_CATEGORIES, ...documents.map((d) => d.category)]));
+
+  // Files go into the subject selected in the filter, or "General" when showing all.
+  const uploadFiles = async (files: FileList | null) => {
+    for (const file of Array.from(files ?? [])) {
+      try {
+        await uploadDocument({ file, category: category === 'All' ? 'General' : category });
+      } catch {
+        // the hook shows the error; carry on with the remaining files
+      }
+    }
+  };
+
+  const openDocument = async (id: string) => {
+    try {
+      await documentService.openDocument(id);
+    } catch (err) {
+      toast.error('Could not open document', errorMessage(err));
+    }
   };
 
   const q = search.trim().toLowerCase();
@@ -48,10 +64,22 @@ export const DocumentsPage: React.FC = () => {
         title="Documents"
         description="Lecture notes, syllabi and papers the assistant can reference when planning."
         actions={
-          <Button onClick={handleUpload} isLoading={isUploading} leftIcon={<Upload className="size-4" />}>
+          <Button onClick={() => fileInputRef.current?.click()} isLoading={isUploading} leftIcon={<Upload className="size-4" />}>
             Upload
           </Button>
         }
+      />
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ACCEPT}
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          uploadFiles(e.target.files);
+          e.target.value = ''; // allow picking the same file again
+        }}
       />
 
       <button
@@ -64,9 +92,9 @@ export const DocumentsPage: React.FC = () => {
         onDrop={(e) => {
           e.preventDefault();
           setDragActive(false);
-          handleUpload();
+          uploadFiles(e.dataTransfer.files);
         }}
-        onClick={handleUpload}
+        onClick={() => fileInputRef.current?.click()}
         className={cn(
           'w-full flex flex-col sm:flex-row items-center justify-center gap-3 px-6 py-6 rounded-xl border border-dashed text-center sm:text-left transition-colors',
           dragActive ? 'border-accent bg-accent-subtle' : 'border-line-strong bg-surface hover:bg-subtle/60'
@@ -79,7 +107,7 @@ export const DocumentsPage: React.FC = () => {
           <span className="block text-sm font-medium text-fg">
             <span className="text-accent">Click to upload</span> or drag and drop
           </span>
-          <span className="block text-xs text-fg-subtle mt-0.5">PDF up to 25 MB · demo mode uses sample files</span>
+          <span className="block text-xs text-fg-subtle mt-0.5">PDF, Word, slides, text or images · up to 25 MB</span>
         </span>
       </button>
 
@@ -89,7 +117,7 @@ export const DocumentsPage: React.FC = () => {
           label="Subject"
           value={category}
           onChange={setCategory}
-          options={[{ value: 'All', label: 'All subjects' }, ...CATEGORIES.map((c) => ({ value: c, label: c }))]}
+          options={[{ value: 'All', label: 'All subjects' }, ...categories.map((c) => ({ value: c, label: c }))]}
         />
       </Toolbar>
 
@@ -188,8 +216,8 @@ export const DocumentsPage: React.FC = () => {
                         <RowActions
                           label={`Actions for ${doc.name}`}
                           items={[
-                            ...(doc.status === 'ready' && doc.url
-                              ? [{ id: 'open', label: 'Open', icon: <Eye />, onClick: () => window.open(doc.url, '_blank', 'noopener') }]
+                            ...(doc.status === 'ready'
+                              ? [{ id: 'open', label: 'Open', icon: <Eye />, onClick: () => openDocument(doc.id) }]
                               : []),
                             { id: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, onClick: () => setDeletingId(doc.id) },
                           ]}

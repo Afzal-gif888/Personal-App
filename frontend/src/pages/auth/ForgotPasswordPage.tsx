@@ -5,18 +5,27 @@ import { authService } from '../../services/authService';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { AuthLayout } from './AuthLayout';
+import { errorMessage } from '../../services/api';
+import { Alert } from '../../components/ui/Alert';
 
 export const ForgotPasswordPage: React.FC = () => {
   const [email, setEmail] = useState('');
   const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    await authService.forgotPassword(email);
-    setIsLoading(false);
-    setSubmitted(true);
+    setError('');
+    try {
+      await authService.forgotPassword(email);
+      setSubmitted(true);
+    } catch (err) {
+      setError(errorMessage(err));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const backLink = (
@@ -31,7 +40,9 @@ export const ForgotPasswordPage: React.FC = () => {
       <AuthLayout title="Check your email" description={`If an account exists for ${email}, we've sent a link to reset your password.`}>
         <div className="flex items-center gap-3 p-4 rounded-lg border border-success-line bg-success-subtle">
           <MailCheck className="size-5 text-success shrink-0" />
-          <p className="text-sm text-fg-muted">The link expires in 30 minutes.</p>
+          <p className="text-sm text-fg-muted">
+            The link works once and expires in 30 minutes. If nothing arrives, check your spam folder or try again.
+          </p>
         </div>
         <div className="mt-6">{backLink}</div>
       </AuthLayout>
@@ -41,6 +52,11 @@ export const ForgotPasswordPage: React.FC = () => {
   return (
     <AuthLayout title="Reset your password" description="Enter your account email and we'll send you a reset link.">
       <form onSubmit={handleSubmit} className="space-y-4">
+        {error && (
+          <Alert variant="error" title="Request failed">
+            {error}
+          </Alert>
+        )}
         <Input
           label="Email"
           type="email"

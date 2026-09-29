@@ -1,9 +1,11 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, Search, LogOut, Settings, ChevronRight, Inbox, MessageSquare, User } from 'lucide-react';
+import { Menu, Search, LogOut, Settings, ChevronRight, Inbox, MessageSquare, User, Bell, CheckCheck } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useApprovals } from '../../hooks/useApprovals';
+import { useNotifications } from '../../hooks/useNotifications';
+import { formatRelativeTime } from '../../utils/formatters';
 import { findNavContext } from '../../config/navigation';
 import { Avatar } from '../ui/Avatar';
 import { Dropdown } from '../ui/Dropdown';
@@ -14,6 +16,7 @@ export const Header: React.FC = () => {
   const { setMobileDrawerOpen, setCommandMenuOpen } = useUIStore();
   const { user, logout } = useAuthStore();
   const { approvals } = useApprovals();
+  const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -80,6 +83,39 @@ export const Header: React.FC = () => {
             )}
           </Link>
         </Tooltip>
+
+        <Dropdown
+          header={
+            <p className="text-sm font-medium text-fg">
+              Notifications{unreadCount > 0 && <span className="text-fg-subtle font-normal"> · {unreadCount} unread</span>}
+            </p>
+          }
+          trigger={
+            <button
+              className="relative inline-flex items-center justify-center size-8 rounded-md text-fg-muted hover:bg-hover hover:text-fg transition-colors"
+              aria-label={`Notifications, ${unreadCount} unread`}
+            >
+              <Bell className="size-4" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 size-2 rounded-full bg-danger ring-2 ring-surface" />
+              )}
+            </button>
+          }
+          items={[
+            ...(notifications.length
+              ? notifications.map((n) => ({
+                  id: n.id,
+                  label: `${n.readAt ? '' : '• '}${n.title} · ${formatRelativeTime(n.createdAt)}`,
+                  onClick: () => {
+                    if (!n.readAt) markRead(n.id);
+                  },
+                }))
+              : [{ id: 'empty', label: 'No notifications yet', onClick: () => undefined }]),
+            ...(unreadCount > 0
+              ? [{ id: 'read-all', label: 'Mark all as read', icon: <CheckCheck />, separated: true, onClick: () => markAllRead() }]
+              : []),
+          ]}
+        />
 
         {!onAssistant && (
           <Button

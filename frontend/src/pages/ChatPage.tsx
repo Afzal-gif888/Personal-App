@@ -192,7 +192,7 @@ export const ChatPage: React.FC = () => {
                 <ChatMessageItem
                   key={msg.id}
                   message={msg}
-                  onActionDecision={(messageId, decision) => handleActionDecision({ messageId, decision })}
+                  onActionDecision={(approvalId, decision) => handleActionDecision({ approvalId, decision })}
                   onRetry={(messageId) => retryMessage(messageId)}
                   isDeciding={isDeciding}
                 />

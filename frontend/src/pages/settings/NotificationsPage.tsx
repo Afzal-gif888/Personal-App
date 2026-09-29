@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { storage } from '../../services/storage';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { userService } from '../../services/userService';
+import { errorMessage } from '../../services/api';
 import type { NotificationSettings } from '../../types';
 import { Switch } from '../../components/ui/Switch';
 import { Button } from '../../components/ui/Button';
@@ -24,30 +26,39 @@ const OPTIONS: { key: keyof NotificationSettings; label: string; description: st
   },
   {
     key: 'emailNotifications',
-    label: 'Weekly summary email',
-    description: 'Completed tasks, study hours and spending, every Monday.',
+    label: 'Email me reminders',
+    description: 'Also send reminders, bill due dates and upcoming events to my email address.',
   },
 ];
 
 export const NotificationsPage: React.FC = () => {
-  const [settings, setSettings] = useState<NotificationSettings>(() => storage.getNotifications());
+  const queryClient = useQueryClient();
+  const { data: saved } = useQuery({ queryKey: ['notificationSettings'], queryFn: userService.getNotifications });
+  // Unsaved edits; until the user toggles something the switches show the saved values.
+  const [draft, setDraft] = useState<NotificationSettings | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const settings = draft ?? saved ?? null;
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!settings) return;
     setIsSaving(true);
-    storage.setNotifications(settings);
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      queryClient.setQueryData(['notificationSettings'], await userService.updateNotifications(settings));
+      setDraft(null);
       toast.success('Notification settings saved');
-    }, 200);
+    } catch (err) {
+      toast.error('Could not save settings', errorMessage(err));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <SettingsSection
       title="Notifications"
-      description="Choose what AgentOS alerts you about."
+      description="Choose what It's Personal alerts you about."
       footer={
-        <Button size="sm" onClick={handleSave} isLoading={isSaving}>
+        <Button size="sm" onClick={handleSave} isLoading={isSaving} disabled={!settings}>
           Save changes
         </Button>
       }
@@ -59,8 +70,9 @@ export const NotificationsPage: React.FC = () => {
             className="py-4"
             label={opt.label}
             description={opt.description}
-            checked={settings[opt.key]}
-            onChange={(checked) => setSettings((s) => ({ ...s, [opt.key]: checked }))}
+            checked={settings?.[opt.key] ?? false}
+            disabled={!settings}
+            onChange={(checked) => settings && setDraft({ ...settings, [opt.key]: checked })}
           />
         ))}
       </div>

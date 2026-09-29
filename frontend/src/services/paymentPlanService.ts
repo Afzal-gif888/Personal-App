@@ -1,42 +1,58 @@
 import type { PaymentPlan } from '../types';
-import { storage } from './storage';
+import { api } from './api';
+import { todayISO } from '../utils/formatters';
 
-const delay = (ms = 150) => new Promise((resolve) => setTimeout(resolve, ms));
+interface PaymentPlanOut {
+  id: string;
+  title: string;
+  totalAmount: number;
+  installmentAmount: number;
+  frequency: string;
+  nextPaymentDate: string | null;
+  remainingAmount: number;
+  totalInstallments: number;
+  completedInstallments: number;
+  status: 'active' | 'paused' | 'completed' | 'cancelled';
+}
+
+const toPlan = (p: PaymentPlanOut): PaymentPlan => ({
+  id: p.id,
+  title: p.title,
+  totalAmount: p.totalAmount,
+  installmentAmount: p.installmentAmount,
+  frequency: p.frequency,
+  nextPaymentDate: p.nextPaymentDate ?? '',
+  remainingAmount: p.remainingAmount,
+  totalInstallments: p.totalInstallments,
+  completedInstallments: p.completedInstallments,
+  status: p.status === 'completed' || p.status === 'cancelled' ? 'completed' : 'active',
+});
 
 export const paymentPlanService = {
   async getPlans(): Promise<PaymentPlan[]> {
-    await delay(150);
-    return storage.getPaymentPlans();
+    return (await api.get<PaymentPlanOut[]>('/payment-plans')).map(toPlan);
   },
 
   async createPlan(data: Omit<PaymentPlan, 'id'>): Promise<PaymentPlan> {
-    await delay(200);
-    const plans = storage.getPaymentPlans();
-    const newPlan: PaymentPlan = { ...data, id: `plan-${Date.now()}` };
-    storage.setPaymentPlans([...plans, newPlan]);
-    return newPlan;
+    const start = data.nextPaymentDate || todayISO();
+    const res = await api.post<PaymentPlanOut>('/payment-plans', {
+      title: data.title,
+      totalAmount: data.totalAmount,
+      installmentAmount: data.installmentAmount,
+      frequency: data.frequency,
+      startDate: start,
+      nextPaymentDate: start,
+      totalInstallments: data.totalInstallments,
+      completedInstallments: data.completedInstallments,
+    });
+    return toPlan(res);
   },
 
   async recordPayment(id: string): Promise<PaymentPlan> {
-    await delay(200);
-    const plans = storage.getPaymentPlans();
-    const plan = plans.find((p) => p.id === id);
-    if (!plan) throw new Error('Plan not found');
-    const completed = plan.completedInstallments + 1;
-    const remaining = plan.remainingAmount - plan.installmentAmount;
-    const status: 'active' | 'completed' = completed >= plan.totalInstallments ? 'completed' : 'active';
-    const updated: PaymentPlan = {
-      ...plan,
-      completedInstallments: completed,
-      remainingAmount: Math.max(0, remaining),
-      status,
-    };
-    storage.setPaymentPlans(plans.map((p) => (p.id === id ? updated : p)));
-    return updated;
+    return toPlan(await api.post<PaymentPlanOut>(`/payment-plans/${id}/payments`));
   },
 
   async deletePlan(id: string): Promise<void> {
-    await delay(150);
-    storage.setPaymentPlans(storage.getPaymentPlans().filter((p) => p.id !== id));
+    await api.delete(`/payment-plans/${id}`);
   },
 };
