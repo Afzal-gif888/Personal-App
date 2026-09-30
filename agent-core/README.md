@@ -1,8 +1,8 @@
-# AgentOS Agent Core
+# Agent Core (It's Personal)
 
 The Agent Core is the reasoning service behind the AgentOS assistant. It takes a student's message, works out what they need, plans, calls tools to read or change their data through the AgentOS backend, and returns a user-facing answer along with a safe execution trace.
 
-It is a separate service. It has no database connection, serves no frontend, and can be started and tested on its own.
+It is a separate service. It has no database connection, serves no frontend, and can be started, tested and deployed on its own: everything it needs is in this folder (deploy it with **Root Directory = `agent-core`**).
 
 ```text
 Frontend  ──►  Backend (FastAPI, PostgreSQL)  ──►  Agent Core  ──►  LLM (Gemini or Claude)
@@ -31,7 +31,7 @@ app/
 ├── llm/               LLMProvider interface, GeminiProvider, AnthropicProvider, UnconfiguredLLMProvider, factory
 ├── tools/             ToolRegistry + task/event/reminder/study/finance/goal/document/memory tools
 ├── memory/            ShortTermMemory, LongTermMemory, MemoryManager
-├── rag/               Extraction, chunking, EmbeddingProvider, VectorStore, Retriever, RagService
+├── rag/               RetrievedChunk: document-search results as returned by the backend
 ├── backend/           BackendClient (httpx), response schemas, typed exceptions
 ├── approvals/         ApprovalManager + ApprovalStore
 ├── config/            Settings (environment variables only)
@@ -155,23 +155,17 @@ Task categories are `academic`, `personal`, `financial`, `career` and `general`.
 
   Values are validated and stored in the backend's user preferences. Nothing is inferred from conversation text: a preference is written only when the model calls `remember_preference`, which is subject to the approval policy.
 
-## RAG
+## Document search (RAG)
+
+Document search lives in the **backend**: it chunks each upload, embeds it once with Gemini and stores the vectors in PostgreSQL + pgvector. The Agent Core only asks for results:
 
 ```text
-backend document ─► download (user token) ─► text extraction (txt/md/csv/pdf) ─► paragraph chunking
-                                                                                     │
-question ─► strip "where to look" words ─► embed ─► VectorStore.search (per user) ◄──┘ embed + upsert
-                                                        │
-                                              chunks ≥ RAG_MIN_SCORE ─► agent state ─► LLM
+question ─► search_documents tool ─► POST /api/v1/documents/search (user token) ─► passages + source (file, page, score) ─► LLM
 ```
 
-- Retrieval runs only for document questions such as "according to my notes…". The model can also call `search_documents`.
-- Documents are indexed on demand and re-indexed when they change. The version is tracked by size and `processedAt`.
-- The store is namespaced per user, so one student's passages can never be returned to another.
-- `EmbeddingProvider`, `VectorStore`, `Retriever` and `DocumentChunk` are separate abstractions.
-  - The bundled `HashingEmbeddingProvider` is deterministic and needs no key, but it matches words, not meaning.
-  - `InMemoryVectorStore` is in-process.
-  - See "Remaining work" for pgvector.
+- For document questions such as "according to my notes…", the router runs one `search_documents` call up front (a recorded tool call), so the model answers in one request. The model can also search again itself.
+- The backend scopes every search to the signed-in user; nothing is stored here, so a restart loses nothing.
+- No relevant passage → the model is told "No relevant document content found." and says so instead of guessing.
 
 ## Approvals
 
@@ -247,7 +241,7 @@ Errors always have the shape `{"error": {"code", "message", "details?"}}`. Stack
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /health` | Liveness |
-| `GET /ready` | Checks the backend is reachable, and reports the LLM provider, tool count and vector store. Returns 503 if the backend is down |
+| `GET /ready` | Checks the backend is reachable, and reports the LLM provider, tool count and document search (`backend (pgvector)`). Returns 503 if the backend is down |
 | `GET /agent/tools` | Tool catalogue |
 | `GET /agent/approvals/{id}`, `POST …/approve`, `POST …/reject` | Approval decisions |
 | `POST /v1/complete` | Single-turn contract used by the existing backend's `AGENT_CORE_MODE=http` |
@@ -261,14 +255,14 @@ See [`.env.example`](.env.example). The main ones:
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `APP_ENV` | `development` | In `production`, the service refuses to start without `AGENT_CORE_SERVICE_TOKEN`, and without `LLM_API_KEY` when `LLM_PROVIDER` is `gemini` or `anthropic` |
-| `AGENT_CORE_PORT` | `8001` | |
+| `AGENT_CORE_PORT` | `8001` | `PORT` (set by Railway) takes precedence |
 | `AGENT_CORE_SERVICE_TOKEN` | empty | Shared secret with the backend |
 | `LLM_PROVIDER` / `LLM_API_KEY` / `LLM_MODEL` | `gemini` / empty / provider default | `gemini` (free tier) or `anthropic`; the key must match the provider |
 | `LLM_PLANNING` | `true` | `false` skips the planning call (saves free-tier quota) |
 | `BACKEND_API_URL` | `http://localhost:8000` | The backend base URL, without `/api/v1` |
 | `MAX_AGENT_ITERATIONS` / `MAX_TOOL_CALLS` / `AGENT_TIMEOUT_SECONDS` | 10 / 20 / 120 | |
 | `MUTATION_POLICY` | `direct` | `direct` or `approval` |
-| `VECTOR_STORE` / `EMBEDDING_PROVIDER` / `EMBEDDING_MODEL` | in-memory / hashing / empty | |
+| `LLM_MAX_REQUESTS_PER_MINUTE` / `LLM_MAX_REQUESTS_PER_DAY` | | Caps on LLM calls, shared by all students |
 
 ## Local development
 
@@ -289,17 +283,21 @@ docker build -t agentos-agent-core .
 docker run --rm -p 8001:8001 --env-file .env -e BACKEND_API_URL=http://host.docker.internal:8000 agentos-agent-core
 ```
 
-The image uses Python 3.12-slim, runs as a non-root user and includes a `/health` healthcheck.
+The image uses Python 3.12-slim, runs as a non-root user, listens on IPv4 and IPv6 (`--host ''`) and includes a `/health` healthcheck.
+
+## Deploy (Railway)
+
+`railway.json` builds from the `Dockerfile`, checks `/health` and keeps one replica. Give the service **no public domain**: only the backend calls it, at `http://agent-core.railway.internal:8001`. Set `APP_ENV=production`, `PORT=8001`, `AGENT_CORE_SERVICE_TOKEN` (same as the backend's), `BACKEND_API_URL=http://backend.railway.internal:8000` and the `LLM_*` values. Step by step: [../DEPLOY.md](../DEPLOY.md).
 
 ## Testing
 
 ```powershell
-pytest            # 118 tests; no API key, database or network needed
+pytest            # 139 tests; no API key, database or network needed
 ruff check .
 ```
 
 - **`tests/tools`:** each tool on its own against `tests/fakes.py`, an in-memory backend with the same routes, camelCase JSON, per-token scoping and error shape as the real one.
-- **`tests/unit`:** router, LLM layer (Anthropic against a stub client, Gemini against a stubbed API, no-key behaviour), memory rules, RAG, approvals and redaction.
+- **`tests/unit`:** router, LLM layer (Anthropic against a stub client, Gemini against a stubbed API, no-key behaviour), memory rules, approvals and redaction.
 - **`tests/integration`:** the full graph and the HTTP API.
   - Agent flows: simple, multi-step, study plan, reminder, RAG, and no retrieval for unrelated requests.
   - Approvals: required, accepted, rejected and expired.
@@ -309,7 +307,5 @@ ruff check .
 ## Remaining work
 
 - **Verify step.** After a write, the agent trusts the backend's response; add a node that re-reads what changed before replying.
-- **pgvector.** There is no backend vector API yet, so the index is in-memory and rebuilt after a restart. The backend should expose chunk upsert and search endpoints backed by pgvector, with a `VectorStore` implementation calling them.
-- **Semantic embeddings.** The hashing embedder matches words, not meaning. Add a hosted embedding provider behind `EmbeddingProvider`.
 - **Streaming.** Events are returned when the run finishes. Server-sent events would let the UI show progress live.
 - **Real-model evaluation.** The Anthropic and Gemini paths are unit-tested against stubbed APIs. Run it with a real key and build an eval set before relying on it.

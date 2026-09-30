@@ -11,7 +11,8 @@ from abc import ABC, abstractmethod
 from fastapi import Request
 
 from app.core.config import get_settings
-from app.core.errors import RateLimited
+from app.core.errors import AuthenticationError, RateLimited
+from app.core.security import decode_access_token
 
 
 class RateLimitBackend(ABC):
@@ -47,15 +48,27 @@ backend: RateLimitBackend = InMemoryRateLimitBackend()
 
 
 def rate_limit(scope: str, per_minute_setting: str):
-    """FastAPI dependency factory: limits by client IP per scope."""
+    """FastAPI dependency factory: limits per signed-in user, or per client IP when anonymous.
+
+    Keying signed-in requests by user matters in production: Agent Core calls the API for every
+    student from one IP, and many students can share a campus IP."""
 
     def dependency(request: Request) -> None:
         settings = get_settings()
         if not settings.rate_limit_enabled:
             return
         limit = getattr(settings, per_minute_setting)
-        client = request.client.host if request.client else "unknown"
-        if not backend.hit(f"{scope}:{client}", limit, 60):
+        if not backend.hit(f"{scope}:{_caller(request)}", limit, 60):
             raise RateLimited("Too many requests, please slow down")
 
     return dependency
+
+
+def _caller(request: Request) -> str:
+    auth = request.headers.get("authorization", "")
+    if auth.lower().startswith("bearer "):
+        try:
+            return f"user:{decode_access_token(auth[7:].strip())['sub']}"
+        except AuthenticationError:  # invalid/expired: the endpoint rejects it; count it by IP here
+            pass
+    return f"ip:{request.client.host if request.client else 'unknown'}"

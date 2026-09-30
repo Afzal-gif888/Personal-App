@@ -1,0 +1,6 @@
+{
+  "venvPath": ".",
+  "venv": ".venv",
+  "include": ["app", "scripts", "alembic"],
+  "exclude": ["**/__pycache__", "storage"]
+}
