@@ -165,7 +165,7 @@ Uploaded files stay on your PC (`backend/storage`), so re-upload documents after
 | Symptom | Fix |
 | --- | --- |
 | Frontend shows "Can't reach the server" | `VITE_API_URL` is wrong or missing. Fix it in Vercel and **redeploy** |
-| Browser console shows a CORS error | `CORS_ORIGINS` on the backend must exactly match the Vercel URL (https, no trailing slash) |
+| Browser console shows a CORS error | `CORS_ORIGINS` on the backend must contain the address shown in the browser's error ("from origin …"). The backend's startup log line `CORS allowed origins` shows what it applied. Vercel gives every deploy a new `…-<hash>-…vercel.app` URL: use the stable project domain from Vercel → Settings → Domains, or set `CORS_ORIGIN_REGEX` |
 | Backend crashes on start: `JWT_SECRET … must be set in production` | Set `JWT_SECRET` and `JWT_REFRESH_SECRET` |
 | Backend log: migration error mentioning `vector` | `DATABASE_URL` isn't Neon, or isn't the direct connection. Use Neon's direct string |
 | Assistant replies that it isn't set up | Agent Core isn't reachable. Check both services' `AGENT_CORE_SERVICE_TOKEN` match, and that the backend's `AGENT_CORE_URL` is `http://agent-core.railway.internal:8001` |
