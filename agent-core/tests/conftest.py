@@ -54,7 +54,7 @@ class Harness:
         svc = self.services
         async with self.client(token) as backend:
             deps = RunDeps(settings=svc.settings, llm=svc.llm, registry=svc.registry, approvals=svc.approvals,
-                           memory=svc.memory, rag=svc.rag, backend=backend)
+                           memory=svc.memory, backend=backend)
             return await self.runner.run(AgentRunRequest(message=message, **request), deps)
 
 
@@ -70,5 +70,5 @@ def tool_ctx(backend, settings):
     client = h.client()
     user = UserContext(user_id=USER_A, name="Asha", timezone="Asia/Kolkata",
                        preferences={"default_reminder_time": "09:00"})
-    ctx = ToolContext(backend=client, user=user, today=backend.today, rag=h.services.rag, memory=h.services.memory.long_term)
+    ctx = ToolContext(backend=client, user=user, today=backend.today, memory=h.services.memory.long_term)
     return h, ctx

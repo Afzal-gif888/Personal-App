@@ -1,4 +1,4 @@
-import type { Document, DocumentStatus } from '../types';
+import type { Document, DocumentIndexStatus, DocumentStatus } from '../types';
 import { api } from './api';
 
 interface DocumentOut {
@@ -10,6 +10,8 @@ interface DocumentOut {
   status: DocumentStatus | 'deleted';
   pageCount: number | null;
   uploadedAt: string;
+  indexStatus: DocumentIndexStatus;
+  indexError: string | null;
 }
 
 function formatSize(bytes: number): string {
@@ -32,6 +34,8 @@ const toDocument = (d: DocumentOut): Document => ({
   uploadedAt: d.uploadedAt.slice(0, 10),
   category: d.category ?? 'General',
   status: d.status === 'deleted' ? 'failed' : d.status,
+  indexStatus: d.indexStatus,
+  indexError: d.indexError ?? undefined,
 });
 
 export const documentService = {
@@ -39,11 +43,16 @@ export const documentService = {
     return (await api.getAll<DocumentOut>('/documents')).map(toDocument);
   },
 
+  /** Queue the document for indexing again (e.g. after a failure). */
+  async reindexDocument(id: string): Promise<Document> {
+    return toDocument(await api.post<DocumentOut>(`/documents/${id}/reindex`));
+  },
+
   async deleteDocument(id: string): Promise<void> {
     await api.delete(`/documents/${id}`);
   },
 
-  /** Uploads the file; the server extracts text (and page count for PDFs) before returning. */
+  /** Uploads the file. The server reads it, then indexes its text for search in the background. */
   async uploadDocument(file: File, category: string = 'General'): Promise<Document> {
     const form = new FormData();
     form.append('file', file);

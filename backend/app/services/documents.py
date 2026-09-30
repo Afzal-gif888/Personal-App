@@ -64,6 +64,10 @@ def to_out(doc: Document) -> DocumentOut:
         uploaded_at=doc.uploaded_at,
         processed_at=doc.processed_at,
         download_url=f"/api/v1/documents/{doc.id}/download",
+        index_status=doc.index_status,
+        index_error=doc.index_error,
+        chunk_count=doc.chunk_count,
+        indexed_at=doc.indexed_at,
     )
 
 
@@ -160,6 +164,7 @@ def update_document(db: Session, user: User, doc_id: uuid.UUID, data: DocumentUp
 
 
 def delete_document(db: Session, user: User, doc_id: uuid.UUID, *, ip: str | None = None) -> None:
+    """Deletes the file, the row and (by FK cascade) its chunks and embeddings."""
     doc = get_document(db, user, doc_id)
     key = doc.storage_key
     audit.record(

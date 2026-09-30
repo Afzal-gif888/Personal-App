@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta, tzinfo
 from typing import Any
@@ -20,7 +21,7 @@ from app.backend.exceptions import BackendAuthError, BackendError
 from app.config.settings import Settings
 from app.llm.base import LLMError, LLMProvider
 from app.memory.manager import MemoryManager
-from app.rag.pipeline import RagService
+from app.rag.schemas import RetrievedChunk
 from app.schemas.agent import AgentError, ErrorCode, Observation, RunStatus, UserContext
 from app.schemas.events import AgentEventType as E
 from app.schemas.events import event
@@ -43,7 +44,6 @@ class RunDeps:
     registry: ToolRegistry
     approvals: ApprovalManager
     memory: MemoryManager
-    rag: RagService | None
     backend: BackendClient
     scopes: frozenset[str] = ALL_SCOPES
 
@@ -59,7 +59,7 @@ def _tool_ctx(state: AgentState, d: RunDeps) -> ToolContext:
     assert state.user is not None
     return ToolContext(
         backend=d.backend, user=state.user, today=datetime.fromisoformat(state.context.local_now).date(),
-        rag=d.rag, memory=d.memory.long_term, scopes=d.scopes,
+        memory=d.memory.long_term, scopes=d.scopes,
     )
 
 
@@ -170,16 +170,24 @@ async def gather_context(state: AgentState, config: RunnableConfig) -> dict[str,
     d = deps(config)
     context = state.context.model_copy(update={"highlights": await _highlights(state, d)})
     update: dict[str, Any] = {"context": context}
-    # Retrieval only runs for document questions, never for unrelated requests.
-    if state.intent.needs_documents and d.rag is not None and state.user is not None:
-        try:
-            chunks = await d.rag.search(d.backend, state.user.user_id, state.request)
-            update["retrieved_documents"] = chunks
-            update["events"] = [event(E.DOCUMENTS_RETRIEVED, state.run_id, chunks=len(chunks),
-                                      documents=sorted({c.document_name for c in chunks}))]
-        except (BackendError, ValueError) as exc:
-            logger.warning("Document retrieval failed", extra={"error": type(exc).__name__})
+    # Document questions (decided by the router) get a search_documents call up front, so the model
+    # answers from the passages in one LLM request instead of asking for the tool first. It is a
+    # real, recorded tool call through the backend; unrelated requests never search.
+    if state.intent.needs_documents and state.user is not None and d.registry.get("search_documents"):
+        call = ToolCallRequest(id=f"retrieval_{uuid.uuid4().hex[:12]}", name="search_documents",
+                               input={"query": state.request[:500]})
+        _, rec, events = await _run_one(state, d, call, _tool_ctx(state, d))
+        update["tool_calls"] = [rec]
+        update["tool_call_count"] = state.tool_call_count + 1
+        chunks = [RetrievedChunk.model_validate(c) for c in (rec.output or {}).get("chunks", [])]
+        update["retrieved_documents"] = chunks
+        update["events"] = events + [event(E.DOCUMENTS_RETRIEVED, state.run_id, chunks=len(chunks),
+                                           documents=sorted({c.document_name for c in chunks}))]
+        if rec.status == ToolCallStatus.FAILED:
+            logger.warning("Document retrieval failed", extra={"error": rec.error})
             update["metadata"] = {**state.metadata, "rag_error": "Document search was unavailable for this request."}
+        elif not chunks:
+            update["metadata"] = {**state.metadata, "rag_empty": "No relevant document content found."}
     return update
 
 
@@ -330,8 +338,6 @@ async def observe(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     update: dict[str, Any] = {"observations": observations}
     retrieved = [c for r in new if r.name == "search_documents" and r.output for c in r.output.get("chunks", [])]
     if retrieved:
-        from app.rag.schemas import RetrievedChunk
-
         known = {c.chunk_id for c in state.retrieved_documents}
         update["retrieved_documents"] = [RetrievedChunk.model_validate(c) for c in retrieved if c["chunk_id"] not in known]
     if state.iterations >= d.settings.max_agent_iterations:

@@ -14,7 +14,6 @@ pydantic-settings>=2.3,<3
 python-dotenv>=1.0
 
 # RAG text extraction
-pypdf>=4.0
 
 # IANA timezones on platforms without a system database (Windows, slim containers)
 tzdata>=2024.1

@@ -1,5 +1,8 @@
 """Test setup. Runs on a temporary SQLite database by default; set TEST_DATABASE_URL to run against
-Postgres (recommended before release, since production runs on Postgres)."""
+PostgreSQL with pgvector (vector-search tests only run there), e.g. the docker-compose database:
+
+    TEST_DATABASE_URL=postgresql://agentos:agentos@127.0.0.1:5433/agentos_test pytest
+"""
 
 import os
 import tempfile
@@ -28,8 +31,17 @@ from app.main import app  # noqa: E402
 PASSWORD = "CorrectHorse1!"
 
 
+IS_POSTGRES = engine.dialect.name == "postgresql"
+requires_pgvector = pytest.mark.skipif(not IS_POSTGRES, reason="vector search needs PostgreSQL + pgvector (TEST_DATABASE_URL)")
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _schema():
+    if IS_POSTGRES:
+        from sqlalchemy import text
+
+        with engine.begin() as conn:
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     yield
@@ -118,6 +130,24 @@ def auth(client) -> dict:
 @pytest.fixture
 def other_auth(client) -> dict:
     return {"Authorization": f"Bearer {register(client, 'someone.else@example.com')['accessToken']}"}
+
+
+@pytest.fixture(autouse=True)
+def embeddings(monkeypatch):
+    """Document indexing/search use a test-only fake embedder (never the Gemini API) in tests."""
+    from tests.fake_embeddings import FakeEmbeddingProvider
+
+    provider = FakeEmbeddingProvider()
+    monkeypatch.setattr("app.rag.indexing.get_embedding_provider", lambda: provider)
+    monkeypatch.setattr(get_settings_for_tests(), "embedding_api_key", "test-key")
+    monkeypatch.setattr(get_settings_for_tests(), "embedding_model", "fake-embedding")
+    return provider
+
+
+def get_settings_for_tests():
+    from app.core.config import get_settings
+
+    return get_settings()
 
 
 @pytest.fixture(autouse=True)

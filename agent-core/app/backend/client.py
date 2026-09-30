@@ -84,24 +84,6 @@ class BackendClient:
                 raise BackendError("The AgentOS service returned an invalid response.", status_code=resp.status_code)
         self._raise_for(resp, method, path)
 
-    async def _raw(self, path: str, *, max_bytes: int) -> tuple[bytes, str]:
-        try:
-            async with self._http.stream("GET", path) as resp:
-                if not resp.is_success:
-                    await resp.aread()
-                    self._raise_for(resp, "GET", path)
-                chunks, size = [], 0
-                async for chunk in resp.aiter_bytes():
-                    size += len(chunk)
-                    if size > max_bytes:
-                        raise BackendValidationError("The document is too large to read.")
-                    chunks.append(chunk)
-                return b"".join(chunks), resp.headers.get("content-type", "")
-        except httpx.TimeoutException:
-            raise BackendUnavailableError("The AgentOS service timed out.")
-        except httpx.HTTPError:
-            raise BackendUnavailableError("Couldn't reach the AgentOS service.")
-
     @staticmethod
     def _raise_for(resp: httpx.Response, method: str, path: str) -> None:
         code, message, details = None, None, None
@@ -300,8 +282,15 @@ class BackendClient:
     async def get_document(self, doc_id: str) -> s.Document:
         return await self._one(s.Document, "GET", f"/documents/{doc_id}")
 
-    async def download_document(self, doc_id: str, *, max_bytes: int) -> tuple[bytes, str]:
-        return await self._raw(f"/documents/{doc_id}/download", max_bytes=max_bytes)
+    async def search_documents(self, query: str, *, top_k: int | None = None,
+                               document_ids: list[str] | None = None) -> s.DocumentSearch:
+        """Semantic search over the signed-in user's documents (the backend scopes it to them)."""
+        body: dict[str, Any] = {"query": query}
+        if top_k:
+            body["topK"] = top_k
+        if document_ids:
+            body["documentIds"] = document_ids
+        return await self._one(s.DocumentSearch, "POST", "/documents/search", json=body)
 
     # --- health ------------------------------------------------------------------------------------
 

@@ -6,7 +6,7 @@ import pytest
 
 from app.schemas.tool import ToolRisk
 from app.tools.registry import ToolError, ToolInputError, ToolPermissionError
-from tests.fakes import USER_A
+from tests.fakes import USER_A, USER_B
 
 
 def ids(h, kind):
@@ -240,6 +240,43 @@ async def test_document_tools(tool_ctx):
     found = await run(h, ctx, "search_documents", {"query": "what is normalization"})
     assert found["chunks"] and found["chunks"][0]["document_name"] == "DBMS notes.txt"
     assert "Normalization" in found["chunks"][0]["text"]
+
+
+async def test_search_documents_calls_the_backend_search_api(tool_ctx):
+    h, ctx = tool_ctx
+    doc = h.fake.add_document(USER_A, "ML notes.txt", "Overfitting happens with high variance.")
+    seen = []
+    original = h.fake._search_documents
+
+    def spy(d, body):
+        seen.append(body)
+        return original(d, body)
+
+    h.fake._search_documents = spy
+    await run(h, ctx, "search_documents", {"query": "overfitting", "document_ids": [doc["id"]], "limit": 3})
+    assert seen == [{"query": "overfitting", "topK": 3, "documentIds": [doc["id"]]}]
+    assert ("POST", "/api/v1/documents/search") in h.fake.calls or any(p.endswith("/documents/search") for _, p in h.fake.calls)
+
+
+async def test_search_documents_empty_result(tool_ctx):
+    h, ctx = tool_ctx
+    h.fake.add_document(USER_A, "ML notes.txt", "Overfitting happens with high variance.")
+    found = await run(h, ctx, "search_documents", {"query": "quantum computing"})
+    assert found["chunks"] == [] and found["message"] == "No relevant document content found."
+
+
+async def test_search_documents_only_sees_the_callers_documents(tool_ctx):
+    h, ctx = tool_ctx
+    h.fake.add_document(USER_B, "B private.txt", "Overfitting happens with high variance.")
+    found = await run(h, ctx, "search_documents", {"query": "overfitting variance"})
+    assert found["chunks"] == []  # user A's token: the backend scopes the search to user A
+
+
+async def test_search_documents_backend_failure_is_a_tool_error(tool_ctx):
+    h, ctx = tool_ctx
+    h.fake.fail[r"/documents/search"] = 503
+    with pytest.raises(ToolError):
+        await run(h, ctx, "search_documents", {"query": "overfitting"})
 
 
 # --- memory ---

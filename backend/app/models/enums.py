@@ -156,6 +156,16 @@ class DocumentStatus(StrEnum):
     DELETED = "deleted"
 
 
+class DocumentIndexStatus(StrEnum):
+    """Whether a document's text is in the vector index (document search)."""
+
+    PENDING = "pending"  # waiting to be indexed
+    INDEXING = "indexing"
+    INDEXED = "indexed"
+    FAILED = "failed"  # can be retried
+    UNSUPPORTED = "unsupported"  # no extractable text (images, scanned PDFs, office files)
+
+
 class MessageRole(StrEnum):
     USER = "user"
     ASSISTANT = "assistant"

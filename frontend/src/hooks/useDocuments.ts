@@ -9,6 +9,11 @@ export function useDocuments() {
   const query = useQuery({
     queryKey: ['documents'],
     queryFn: () => documentService.getDocuments(),
+    // Indexing happens after the upload returns; poll until it settles.
+    refetchInterval: (q) =>
+      q.state.data?.some((d) => d.status === 'ready' && (d.indexStatus === 'pending' || d.indexStatus === 'indexing'))
+        ? 3000
+        : false,
   });
 
   const uploadMutation = useMutation({
@@ -18,10 +23,16 @@ export function useDocuments() {
       if (doc.status === 'failed') {
         toast.warning('Document Uploaded', `"${doc.name}" was saved, but its text couldn't be extracted.`);
       } else {
-        toast.success('Document Uploaded', `"${doc.name}" is now processed and ready.`);
+        toast.success('Document Uploaded', `"${doc.name}" is uploaded. Indexing it so the assistant can search it.`);
       }
     },
     onError: (err) => toast.error('Document upload failed', errorMessage(err)),
+  });
+
+  const reindexMutation = useMutation({
+    mutationFn: (id: string) => documentService.reindexDocument(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['documents'] }),
+    onError: (err) => toast.error('Could not retry indexing', errorMessage(err)),
   });
 
   const deleteMutation = useMutation({
@@ -40,5 +51,6 @@ export function useDocuments() {
     uploadDocument: uploadMutation.mutateAsync,
     isUploading: uploadMutation.isPending,
     deleteDocument: deleteMutation.mutateAsync,
+    reindexDocument: reindexMutation.mutateAsync,
   };
 }

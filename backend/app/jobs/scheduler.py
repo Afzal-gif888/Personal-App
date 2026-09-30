@@ -18,6 +18,7 @@ from app.db.session import session_scope
 from app.models import Bill, Event, Reminder, User
 from app.models.enums import MEETING_EVENT_TYPES, BillStatus, NotificationType, ReminderStatus, TaskCategory
 from app.notifications import notify, retry_failed_emails
+from app.rag.indexing import index_pending
 from app.services import approvals, finance
 
 logger = logging.getLogger(__name__)
@@ -124,6 +125,7 @@ def run_once() -> dict[str, int]:
         "events": lambda db: notify_upcoming_events(db, utcnow()),
         "approvals_expired": lambda db: approvals.expire_due(db),
         "emails_retried": retry_failed_emails,
+        "documents_indexed": index_pending,
     }
     for name, job in jobs.items():
         try:

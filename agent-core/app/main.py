@@ -42,7 +42,6 @@ from app.llm.factory import create_llm_provider
 from app.memory.long_term import LongTermMemory
 from app.memory.manager import MemoryManager
 from app.memory.short_term import ShortTermMemory
-from app.rag.pipeline import RagService, create_rag_service
 from app.schemas.agent import (
     AgentError,
     AgentRunRequest,
@@ -98,7 +97,6 @@ class Services:
     registry: ToolRegistry
     approvals: ApprovalManager
     memory: MemoryManager
-    rag: RagService
     runner: AgentRunner
     backend_transport: httpx.AsyncBaseTransport | None = None
 
@@ -119,7 +117,6 @@ def build_services(
         registry=registry,
         approvals=ApprovalManager(InMemoryApprovalStore(), ttl_seconds=settings.approval_ttl_seconds, registry=registry),
         memory=MemoryManager(ShortTermMemory(max_messages=settings.history_messages), LongTermMemory()),
-        rag=create_rag_service(settings),
         runner=AgentRunner(),
         backend_transport=backend_transport,
     )
@@ -238,7 +235,7 @@ def create_app(
         backend_ok = await BackendClient.ping(svc.settings.backend_api_url, transport=svc.backend_transport)
         llm_ok = svc.llm.name != "unconfigured"
         checks = {"backend": "ok" if backend_ok else "unreachable", "llm": svc.llm.name, "tools": len(svc.registry),
-                  "vector_store": type(svc.rag.retriever.store).__name__}
+                  "document_search": "backend (pgvector)"}
         ok = backend_ok and llm_ok
         return JSONResponse({"status": "ready" if ok else "not_ready", "checks": checks}, status_code=200 if ok else 503)
 
@@ -251,7 +248,7 @@ def create_app(
     ):
         async with svc.backend(token, rid) as backend:
             deps = RunDeps(settings=svc.settings, llm=svc.llm, registry=svc.registry, approvals=svc.approvals,
-                           memory=svc.memory, rag=svc.rag, backend=backend, scopes=scopes)
+                           memory=svc.memory, backend=backend, scopes=scopes)
             result = await svc.runner.run(body, deps)
         if result.error and result.error.code in (ErrorCode.UNAUTHORIZED, ErrorCode.FORBIDDEN):
             status = 401 if result.error.code == ErrorCode.UNAUTHORIZED else 403
@@ -288,7 +285,7 @@ def create_app(
             try:
                 if action == "approve":
                     today = datetime.now(ZoneInfo(user.timezone)).date()
-                    ctx = ToolContext(backend=backend, user=user, today=today, rag=svc.rag, memory=svc.memory.long_term)
+                    ctx = ToolContext(backend=backend, user=user, today=today, memory=svc.memory.long_term)
                     approval = await svc.approvals.approve(approval_id, ctx)
                 elif action == "reject":
                     approval = await svc.approvals.reject(approval_id, user.user_id)
@@ -335,7 +332,7 @@ def create_app(
         async with svc.backend(token, rid) as backend:
             user = await _approval_user(backend)
             today = datetime.now(ZoneInfo(user.timezone)).date()
-            ctx = ToolContext(backend=backend, user=user, today=today, rag=svc.rag,
+            ctx = ToolContext(backend=backend, user=user, today=today,
                               memory=svc.memory.long_term, scopes=scopes)
             try:
                 result = await svc.registry.execute(tool, tool.parse(body.action_payload), ctx)

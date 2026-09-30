@@ -54,16 +54,7 @@ class Settings(BaseSettings):
     mutation_policy: Literal["direct", "approval"] = "direct"
     approval_ttl_seconds: int = Field(default=72 * 3600, ge=60)
 
-    # RAG.
-    vector_store: Literal["", "memory"] = ""
-    embedding_provider: Literal["", "hashing"] = ""
-    embedding_model: str = ""
-    embedding_dimensions: int = Field(default=512, ge=64, le=8192)
-    rag_top_k: int = Field(default=4, ge=1, le=20)
-    rag_min_score: float = Field(default=0.12, ge=0, le=1)
-    rag_chunk_chars: int = Field(default=900, ge=200)
-    rag_chunk_overlap: int = Field(default=150, ge=0)
-    rag_max_document_mb: int = Field(default=25, ge=1)
+    # Document search is done by the backend (Gemini embeddings + pgvector); nothing to set here.
 
     @field_validator("backend_api_url")
     @classmethod
@@ -74,8 +65,6 @@ class Settings(BaseSettings):
     def _production_guards(self) -> "Settings":
         if self.app_env == "production" and not self.agent_core_service_token.get_secret_value():
             raise ValueError("AGENT_CORE_SERVICE_TOKEN is required in production")
-        if self.rag_chunk_overlap >= self.rag_chunk_chars:
-            raise ValueError("RAG_CHUNK_OVERLAP must be smaller than RAG_CHUNK_CHARS")
         return self
 
     @property

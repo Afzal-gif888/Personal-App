@@ -113,7 +113,8 @@ class AgentRunner:
             approval_required=bool(state.pending_approvals),
             approvals=state.pending_approvals,
             retrieved_documents=[
-                {"document_id": c.document_id, "document_name": c.document_name, "chunk_id": c.chunk_id, "score": c.score}
+                {"document_id": c.document_id, "document_name": c.document_name, "chunk_id": c.chunk_id,
+                 "page_number": c.page_number, "score": c.score}
                 for c in state.retrieved_documents
             ],
             events=[e.model_dump(mode="json") for e in state.events],

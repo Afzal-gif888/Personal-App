@@ -44,6 +44,23 @@
   --color-danger-subtle: #fef3f2;
   --color-danger-line: #fecdca;
 
+  /* Navigation: one colour per section, from the logo palette (green check, amber page, coral
+     target, purple chart, navy). 600-700 shades so icons stay readable (>= 3:1) on white. */
+  --color-nav-home: #2554d9;       /* navy-blue: the app's own accent */
+  --color-nav-assistant: #7c3aed;  /* violet: AI */
+  --color-nav-approvals: #d97706;  /* amber: needs your attention */
+  --color-nav-tasks: #16a34a;      /* green: done / checked */
+  --color-nav-calendar: #0284c7;   /* sky: schedule */
+  --color-nav-reminders: #ea580c;  /* orange: alert bell */
+  --color-nav-goals: #e11d48;      /* coral-red: target */
+  --color-nav-study: #4f46e5;      /* indigo: learning */
+  --color-nav-documents: #b45309;  /* amber-brown: paper / notes */
+  --color-nav-bills: #059669;      /* emerald: money */
+  --color-nav-expenses: #db2777;   /* pink: spending */
+  --color-nav-budgets: #9333ea;    /* purple: charts / limits */
+  --color-nav-activity: #0891b2;   /* cyan: live activity */
+  --color-nav-settings: #0f766e;   /* teal: tools / configuration */
+
   /* Type */
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;

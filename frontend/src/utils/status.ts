@@ -68,7 +68,22 @@ export const DOCUMENT_STATUS_STYLES: Record<string, StatusStyle> = {
   processing: style('Processing', 'info'),
   uploading: style('Uploading', 'info'),
   failed: style('Failed', 'error'),
+  // Ready documents show their search-index state instead.
+  index_pending: style('Indexing', 'info'),
+  index_indexing: style('Indexing', 'info'),
+  index_indexed: style('Searchable', 'success'),
+  index_failed: style('Index failed', 'warning'),
+  index_unsupported: style('Not searchable', 'neutral'),
 };
+
+/** Badge key for a document: upload state, or the search-index state once it's ready. */
+export function documentBadgeKey(doc: { status: string; indexStatus?: string }): string {
+  return doc.status === 'ready' && doc.indexStatus ? `index_${doc.indexStatus}` : doc.status;
+}
+
+export function documentIsIndexing(doc: { status: string; indexStatus?: string }): boolean {
+  return doc.status === 'ready' && (doc.indexStatus === 'pending' || doc.indexStatus === 'indexing');
+}
 
 export function statusStyle(map: Record<string, StatusStyle>, key: string): StatusStyle {
   return map[key] ?? style(key.replace(/_/g, ' '), 'neutral');

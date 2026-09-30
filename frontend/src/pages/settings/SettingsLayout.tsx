@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { User, Bell, SlidersHorizontal } from 'lucide-react';
+import { PageLoading } from '../../components/layout/AppLayout';
 import { Page, PageHeader } from '../../components/ui/PageHeader';
 import { Tabs } from '../../components/ui/Tabs';
 import { cn } from '../../utils/cn';
@@ -46,7 +47,9 @@ export const SettingsLayout: React.FC = () => {
           ))}
         </nav>
         <div className="flex-1 min-w-0 max-w-3xl">
-          <Outlet />
+          <Suspense fallback={<PageLoading />}>
+            <Outlet />
+          </Suspense>
         </div>
       </div>
     </Page>

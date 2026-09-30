@@ -68,7 +68,9 @@ class MockLLMProvider(LLMProvider):
     async def invoke(
         self, *, system: str, messages: list[dict[str, Any]], tools: list[LLMToolSpec], purpose: Purpose = "act"
     ) -> LLMResult:
-        self.calls.append({"purpose": purpose, "tools": [t.name for t in tools], "messages": len(messages)})
+        self.calls.append({"purpose": purpose, "tools": [t.name for t in tools], "messages": len(messages), "system": system})
+        # Like the real model is told to: don't search again when the documents were already searched.
+        self._already_searched = "## Relevant document excerpts" in system or "## Document search" in system
         if self._scripted is not None:
             if not self._scripted:
                 raise LLMError("The mock provider has no scripted responses left.")
@@ -123,6 +125,8 @@ class MockLLMProvider(LLMProvider):
         week_end = (today + timedelta(days=7)).isoformat()
 
         if any(k in text for k in ("according to", "my notes", "uploaded", "document", "pdf")):
+            if getattr(self, "_already_searched", False):
+                return []
             return [("search_documents", {"query": original})] if round_ == 0 else []
 
         if "remind me" in text:

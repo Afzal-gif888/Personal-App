@@ -10,7 +10,7 @@ export const MobileNav: React.FC = () => {
   const close = () => setMobileDrawerOpen(false);
 
   return (
-    <Drawer isOpen={mobileDrawerOpen} onClose={close} title={<Logo size="sm" withText subtext="Personal workspace" />}>
+    <Drawer isOpen={mobileDrawerOpen} onClose={close} title={<Logo size="sm" withText />}>
       <div className="flex flex-col min-h-full">
         <NavList onNavigate={close} />
         <div className="mt-auto pt-4 border-t border-line">
