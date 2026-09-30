@@ -62,9 +62,13 @@ def create_app() -> FastAPI:
             response.headers.setdefault("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'")
         return response
 
+    # Origins aren't secrets: logging them shows at a glance whether CORS_ORIGINS reached the app.
+    logger.info("CORS allowed origins", extra={"origins": settings.cors_origins,
+                                                "origin_regex": settings.cors_origin_regex or None})
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        allow_origin_regex=settings.cors_origin_regex or None,
         allow_credentials=False,  # bearer tokens, not cookies
         allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "X-Request-ID"],

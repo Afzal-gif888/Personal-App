@@ -10,6 +10,20 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 _DEV_SECRET = "dev-only-insecure-secret-change-me"
 
 
+def _normalise_origin(value: str) -> str:
+    """Write an origin the way browsers send it in the Origin header, which CORS compares exactly.
+
+    Values pasted into a hosting dashboard often carry a trailing slash (copied from the address
+    bar), quotes or capitals; any of those made the match fail and the preflight lose its
+    Access-Control-Allow-Origin header. Scheme and host are case-insensitive, so they're lowered.
+    """
+    origin = str(value).strip().strip("\"'").strip().rstrip("/")
+    if origin == "*" or "://" not in origin:
+        return origin
+    scheme, rest = origin.split("://", 1)
+    return f"{scheme.lower()}://{rest.lower()}"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -50,6 +64,9 @@ class Settings(BaseSettings):
 
     # NoDecode: read the raw string so plain comma-separated values work, not only JSON.
     cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["http://localhost:5173"])
+    # Optional: also allow origins matching this regex, e.g. every Vercel deployment URL of one
+    # project, which changes on each deploy: ^https://its-personal-[a-z0-9]+-xdark1\.vercel\.app$
+    cors_origin_regex: str = ""
 
     rate_limit_enabled: bool = True
     rate_limit_auth_per_minute: int = 20
@@ -89,10 +106,8 @@ class Settings(BaseSettings):
     def _split_origins(cls, value):
         if isinstance(value, str):
             value = value.strip()
-            if value.startswith("["):
-                return json.loads(value)
-            return [o.strip() for o in value.split(",") if o.strip()]
-        return value
+            value = json.loads(value) if value.startswith("[") else value.split(",")
+        return [o for o in (_normalise_origin(v) for v in value) if o]
 
     @field_validator("database_url")
     @classmethod
@@ -115,6 +130,9 @@ class Settings(BaseSettings):
                 raise ValueError("JWT_SECRET and JWT_REFRESH_SECRET must be set in production")
             if "*" in self.cors_origins:
                 raise ValueError("Wildcard CORS_ORIGINS is not allowed in production")
+            if self.cors_origin_regex and not (self.cors_origin_regex.startswith("^https://")
+                                               and self.cors_origin_regex.endswith("$")):
+                raise ValueError("CORS_ORIGIN_REGEX must be anchored: ^https://...$ in production")
             # A missing DATABASE_URL would otherwise fall back to the localhost default and fail
             # later with a confusing connection error.
             if self.is_sqlite or any(h in self.database_url for h in ("@localhost", "@127.0.0.1")):
