@@ -4,6 +4,18 @@ A personal AI workspace for students. One place for coursework, calendar, bills,
 
 > Status: the React frontend talks to the FastAPI backend in [`backend/`](backend) for everything (no mock data). Run both: `uvicorn app.main:app --reload` in `backend/`, then `npm run dev` in `frontend/`; Vite proxies `/api` to `http://localhost:8000`. Set `VITE_API_URL` to point a build at a backend on another origin.
 
+## Repository layout
+
+Three independent services, each deployed from its own folder, plus local-only tools at the root:
+
+| Folder | What it is | Deploys to | Root Directory |
+| --- | --- | --- | --- |
+| [`frontend/`](frontend) | React website | Vercel | `frontend` |
+| [`backend/`](backend) | FastAPI API, database, scheduler, document search | Railway | `backend` |
+| [`agent-core/`](agent-core) | LangGraph assistant service (private) | Railway | `agent-core` |
+
+No folder imports from another: they talk over HTTP only. Each has its own dependencies, `.env.example`, `.gitignore`, README and deploy config. The root holds local development tools only (`start.ps1`, `stop.ps1`, `start.bat`, `docker-compose.yml` for the local database, `pyrightconfig.json`), none of which are deployed. Deployment guide: [DEPLOY.md](DEPLOY.md).
+
 ## Quick start
 
 With Docker Desktop running and both `.env` files in place, start everything from the project root:
@@ -157,6 +169,8 @@ All services call the real backend through `services/api.ts`.
 - **Formatting**: dates, times and INR currency via [`frontend/src/utils/formatters.ts`](frontend/src/utils/formatters.ts). Dates are local calendar dates, not UTC.
 
 ## Hosting for students
+
+**Step-by-step deployment (Vercel + Railway + Neon): see [DEPLOY.md](DEPLOY.md).**
 
 Every student signs up with their own email. **Signing in takes two steps**: the password, then a 6-digit code emailed to them through [EmailJS](https://www.emailjs.com). The session (JWT) is only issued after the code is accepted, so every signed-in student has proved they read that inbox. The code:
 

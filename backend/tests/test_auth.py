@@ -85,3 +85,21 @@ def test_security_headers(client, auth):
     assert headers["x-frame-options"] == "DENY" and headers["x-content-type-options"] == "nosniff"
     assert headers["content-security-policy"] == "default-src 'none'; frame-ancestors 'none'"
     assert "content-security-policy" not in client.get("/docs").headers  # Swagger UI needs its scripts
+
+
+def test_signed_in_rate_limits_are_per_user_not_per_ip(client, auth, other_auth, monkeypatch):
+    """Everyone behind one IP (Agent Core, a campus network) must not share a single budget."""
+    from app.core import rate_limit as rl
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "rate_limit_enabled", True)
+    monkeypatch.setattr(get_settings(), "rate_limit_chat_per_minute", 2)
+    rl.backend.reset()
+    try:
+        search = {"query": "anything"}
+        a = [client.post("/api/v1/documents/search", headers=auth, json=search).status_code for _ in range(3)]
+        b = client.post("/api/v1/documents/search", headers=other_auth, json=search).status_code
+        assert a[2] == 429 and 429 not in a[:2]  # user A used up their own budget
+        assert b != 429  # user B, same IP, still has theirs
+    finally:
+        rl.backend.reset()

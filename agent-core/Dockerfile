@@ -20,6 +20,8 @@ USER agent
 EXPOSE 8001
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"AGENT_CORE_PORT\", \"8001\")}/health', timeout=2)"
+    CMD python -c "import os, urllib.request; urllib.request.urlopen(f'http://127.0.0.1:{os.environ.get(\"PORT\") or os.environ.get(\"AGENT_CORE_PORT\", \"8001\")}/health', timeout=2)"
 
-CMD ["sh", "-c", "exec uvicorn app.main:create_app --factory --host 0.0.0.0 --port ${AGENT_CORE_PORT}"]
+# --host '' opens one IPv4 and one IPv6 socket (Railway's private network is IPv6; "::" alone
+# would be IPv6-only under asyncio). PORT (set by Railway) wins over AGENT_CORE_PORT.
+CMD ["sh", "-c", "exec uvicorn app.main:create_app --factory --host '' --port ${PORT:-${AGENT_CORE_PORT}}"]
