@@ -1,0 +1,29 @@
+# Development database: PostgreSQL 18 with the pgvector extension (document search).
+#
+#   docker compose up -d db        start (data persists in the "pgdata" volume)
+#   docker compose stop db         stop
+#   docker compose exec db psql -U agentos -d agentos
+#
+# Port 5433 on the host so it can run next to a native PostgreSQL on 5432.
+# backend/.env: DATABASE_URL=postgresql://agentos:agentos@127.0.0.1:5433/agentos
+services:
+  db:
+    image: pgvector/pgvector:pg18
+    container_name: agentos-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: agentos
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-agentos}
+      POSTGRES_DB: agentos
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agentos -d agentos"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:

@@ -27,7 +27,6 @@ from app.schemas.tool import ToolDomain, ToolInput, ToolRisk
 
 if TYPE_CHECKING:
     from app.memory.long_term import LongTermMemory
-    from app.rag.pipeline import RagService
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +50,6 @@ class ToolContext:
     backend: BackendClient
     user: UserContext
     today: date
-    rag: "RagService | None" = None
     memory: "LongTermMemory | None" = None
     scopes: frozenset[str] = ALL_SCOPES
 

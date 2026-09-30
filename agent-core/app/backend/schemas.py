@@ -234,3 +234,21 @@ class Document(BackendModel):
     status: str
     page_count: int | None = None
     processed_at: datetime | None = None
+    index_status: str | None = None  # "indexed" = its content is searchable
+    chunk_count: int = 0
+
+
+class DocumentSearchHit(BackendModel):
+    chunk_id: str
+    document_id: str
+    document_name: str
+    chunk_index: int
+    page_number: int | None = None
+    content: str
+    similarity: float
+
+
+class DocumentSearch(BackendModel):
+    query: str
+    results: list[DocumentSearchHit]
+    message: str | None = None

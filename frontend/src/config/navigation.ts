@@ -21,6 +21,8 @@ export interface NavItem {
   label: string;
   path: string;
   icon: LucideIcon;
+  /** Icon colour: a --color-nav-* token from index.css, matching what the section is about. */
+  color: string;
   description: string;
   /** Shows the pending-approvals count next to the item. */
   showApprovalCount?: boolean;
@@ -42,10 +44,10 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     id: 'workspace',
     items: [
-      { id: 'home', label: 'Home', path: '/dashboard', icon: Home, description: 'Today at a glance' },
-      { id: 'assistant', label: 'Assistant', path: '/chat', icon: MessageSquare, description: 'Ask the AI to plan, schedule or summarise' },
+      { id: 'home', color: 'var(--color-nav-home)', label: 'Home', path: '/dashboard', icon: Home, description: 'Today at a glance' },
+      { id: 'assistant', color: 'var(--color-nav-assistant)', label: 'Assistant', path: '/chat', icon: MessageSquare, description: 'Ask the AI to plan, schedule or summarise' },
       {
-        id: 'approvals',
+        id: 'approvals', color: 'var(--color-nav-approvals)',
         label: 'Approvals',
         path: '/approvals',
         icon: Inbox,
@@ -58,40 +60,40 @@ export const NAV_GROUPS: NavGroup[] = [
     id: 'planning',
     label: 'Planning',
     items: [
-      { id: 'tasks', label: 'Tasks', path: '/tasks', icon: CheckSquare, description: 'Assignments and to-dos across every area' },
-      { id: 'calendar', label: 'Calendar', path: '/calendar', icon: CalendarDays, description: 'Classes, meetings and appointments' },
-      { id: 'reminders', label: 'Reminders', path: '/reminders', icon: Bell, description: 'Time-based nudges' },
-      { id: 'goals', label: 'Goals', path: '/goals', icon: Target, description: 'Longer-term objectives and progress' },
+      { id: 'tasks', color: 'var(--color-nav-tasks)', label: 'Tasks', path: '/tasks', icon: CheckSquare, description: 'Assignments and to-dos across every area' },
+      { id: 'calendar', color: 'var(--color-nav-calendar)', label: 'Calendar', path: '/calendar', icon: CalendarDays, description: 'Classes, meetings and appointments' },
+      { id: 'reminders', color: 'var(--color-nav-reminders)', label: 'Reminders', path: '/reminders', icon: Bell, description: 'Time-based nudges' },
+      { id: 'goals', color: 'var(--color-nav-goals)', label: 'Goals', path: '/goals', icon: Target, description: 'Longer-term objectives and progress' },
     ],
   },
   {
     id: 'study',
     label: 'Study',
     items: [
-      { id: 'study-plan', label: 'Study plan', path: '/study-plan', icon: BookOpen, description: 'Scheduled revision sessions' },
-      { id: 'documents', label: 'Documents', path: '/documents', icon: FileText, description: 'Notes and syllabi the assistant can read' },
+      { id: 'study-plan', color: 'var(--color-nav-study)', label: 'Study plan', path: '/study-plan', icon: BookOpen, description: 'Scheduled revision sessions' },
+      { id: 'documents', color: 'var(--color-nav-documents)', label: 'Documents', path: '/documents', icon: FileText, description: 'Notes and syllabi the assistant can read' },
     ],
   },
   {
     id: 'finance',
     label: 'Finance',
     items: [
-      { id: 'bills', label: 'Bills & payments', path: '/bills', icon: Receipt, description: 'Upcoming bills and instalment plans' },
-      { id: 'expenses', label: 'Expenses', path: '/expenses', icon: Wallet, description: 'Day-to-day spending' },
-      { id: 'budgets', label: 'Budgets', path: '/budgets', icon: PiggyBank, description: 'Monthly spending limits' },
+      { id: 'bills', color: 'var(--color-nav-bills)', label: 'Bills & payments', path: '/bills', icon: Receipt, description: 'Upcoming bills and instalment plans' },
+      { id: 'expenses', color: 'var(--color-nav-expenses)', label: 'Expenses', path: '/expenses', icon: Wallet, description: 'Day-to-day spending' },
+      { id: 'budgets', color: 'var(--color-nav-budgets)', label: 'Budgets', path: '/budgets', icon: PiggyBank, description: 'Monthly spending limits' },
     ],
   },
   {
     id: 'automation',
     label: 'Automation',
     items: [
-      { id: 'agent-runs', label: 'Agent activity', path: '/agent-runs', icon: Activity, description: 'Every assistant run, step by step' },
+      { id: 'agent-runs', color: 'var(--color-nav-activity)', label: 'Agent activity', path: '/agent-runs', icon: Activity, description: 'Every assistant run, step by step' },
     ],
   },
 ];
 
 export const SETTINGS_NAV: NavItem = {
-  id: 'settings',
+  id: 'settings', color: 'var(--color-nav-settings)',
   label: 'Settings',
   path: '/settings/profile',
   icon: Settings,

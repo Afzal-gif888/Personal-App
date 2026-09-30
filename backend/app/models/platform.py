@@ -4,12 +4,14 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import JSON, func, BigInteger, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from pgvector.sqlalchemy import Vector
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, CreatedAt, Timestamps, UserOwned, UUIDPk, str_enum
 from app.models.enums import (
     AgentRunStatus,
     ApprovalStatus,
+    DocumentIndexStatus,
     DocumentStatus,
     MessageRole,
     NotificationStatus,
@@ -33,6 +35,42 @@ class Document(UUIDPk, Timestamps, UserOwned, Base):
     error_message: Mapped[str | None] = mapped_column(Text)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     processed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Document search: set by app.rag.indexing, separately from the upload `status`.
+    index_status: Mapped[DocumentIndexStatus] = mapped_column(
+        str_enum(DocumentIndexStatus), default=DocumentIndexStatus.PENDING, server_default=DocumentIndexStatus.PENDING.value
+    )
+    index_error: Mapped[str | None] = mapped_column(Text)
+    index_attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    index_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    indexed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    chunk_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    embedding_model: Mapped[str | None] = mapped_column(String(100))
+
+
+# Size of the embedding vectors in document_chunks. Must match EMBEDDING_DIMENSIONS and what the
+# embedding model returns (checked on every write); changing it needs a migration and a re-index.
+EMBEDDING_DIMENSIONS = 768
+
+
+class DocumentChunk(UUIDPk, Timestamps, UserOwned, Base):
+    """One passage of a document with its embedding. Deleted with the document (FK cascade)."""
+
+    __tablename__ = "document_chunks"
+    __table_args__ = (
+        UniqueConstraint("document_id", "chunk_index", name="uq_document_chunks_document_id_chunk_index"),
+        # Approximate nearest-neighbour search by cosine distance (see migration 0006).
+        Index("ix_document_chunks_embedding_hnsw", "embedding", postgresql_using="hnsw",
+              postgresql_ops={"embedding": "vector_cosine_ops"}),
+    )
+
+    document_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("documents.id", ondelete="CASCADE"), index=True)
+    chunk_index: Mapped[int] = mapped_column(Integer)
+    content: Mapped[str] = mapped_column(Text)
+    content_hash: Mapped[str] = mapped_column(String(64))
+    page_number: Mapped[int | None] = mapped_column(Integer)
+    character_count: Mapped[int] = mapped_column(Integer)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIMENSIONS))
+    meta: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
 
 
 class Conversation(UUIDPk, Timestamps, UserOwned, Base):

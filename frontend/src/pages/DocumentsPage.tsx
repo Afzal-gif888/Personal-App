@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Upload, FileText, Trash2, Eye, Loader2 } from 'lucide-react';
+import { Upload, FileText, Trash2, Eye, Loader2, RotateCw } from 'lucide-react';
 import { useDocuments } from '../hooks/useDocuments';
 import { documentService } from '../services/documentService';
 import { errorMessage } from '../services/api';
@@ -16,7 +16,7 @@ import { Table, THead, TBody, TR, TH, TD } from '../components/ui/Table';
 import { Toolbar, SearchField, FilterSelect, TableFooter } from '../components/ui/Toolbar';
 import { DesktopOnly, MobileList, MobileRow } from '../components/ui/ResponsiveList';
 import { formatDate } from '../utils/formatters';
-import { DOCUMENT_STATUS_STYLES, statusStyle } from '../utils/status';
+import { DOCUMENT_STATUS_STYLES, documentBadgeKey, documentIsIndexing, statusStyle } from '../utils/status';
 import { cn } from '../utils/cn';
 
 const DEFAULT_CATEGORIES = ['Machine Learning', 'Database Systems', 'Operating Systems', 'Algorithm Analysis', 'General'];
@@ -25,7 +25,7 @@ const DEFAULT_CATEGORIES = ['Machine Learning', 'Database Systems', 'Operating S
 const ACCEPT = '.pdf,.txt,.md,.csv,.docx,.pptx,.xlsx,.png,.jpg,.jpeg';
 
 export const DocumentsPage: React.FC = () => {
-  const { documents, uploadDocument, isUploading, deleteDocument } = useDocuments();
+  const { documents, uploadDocument, isUploading, deleteDocument, reindexDocument } = useDocuments();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [dragActive, setDragActive] = useState(false);
@@ -128,7 +128,7 @@ export const DocumentsPage: React.FC = () => {
           <>
             <MobileList>
               {filtered.map((doc) => {
-                const s = statusStyle(DOCUMENT_STATUS_STYLES, doc.status);
+                const s = statusStyle(DOCUMENT_STATUS_STYLES, documentBadgeKey(doc));
                 const inFlight = doc.status === 'uploading' || doc.status === 'processing';
                 return (
                   <MobileRow
@@ -146,9 +146,12 @@ export const DocumentsPage: React.FC = () => {
                         </div>
                       ) : (
                         <>
-                          <Badge variant={s.variant} dot>
-                            {s.label}
-                          </Badge>
+                          <span title={doc.indexError}>
+                            <Badge variant={s.variant} dot>
+                              {documentIsIndexing(doc) && <Loader2 className="size-3 animate-spin" />}
+                              {s.label}
+                            </Badge>
+                          </span>
                           <span className="text-xs text-fg-subtle">{formatDate(doc.uploadedAt)}</span>
                         </>
                       )
@@ -156,7 +159,12 @@ export const DocumentsPage: React.FC = () => {
                     actions={
                       <RowActions
                         label={`Actions for ${doc.name}`}
-                        items={[{ id: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, onClick: () => setDeletingId(doc.id) }]}
+                        items={[
+                          ...(doc.status === 'ready' && doc.indexStatus === 'failed'
+                            ? [{ id: 'reindex', label: 'Retry indexing', icon: <RotateCw />, onClick: () => reindexDocument(doc.id) }]
+                            : []),
+                          { id: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, onClick: () => setDeletingId(doc.id) },
+                        ]}
                       />
                     }
                   />
@@ -180,7 +188,7 @@ export const DocumentsPage: React.FC = () => {
               </THead>
               <TBody>
                 {filtered.map((doc) => {
-                  const s = statusStyle(DOCUMENT_STATUS_STYLES, doc.status);
+                  const s = statusStyle(DOCUMENT_STATUS_STYLES, documentBadgeKey(doc));
                   const inFlight = doc.status === 'uploading' || doc.status === 'processing';
                   return (
                     <TR key={doc.id}>
@@ -207,10 +215,12 @@ export const DocumentsPage: React.FC = () => {
                       <TD className="hidden lg:table-cell text-right text-fg-muted tabular">{doc.pageCount ?? '—'}</TD>
                       <TD className="hidden sm:table-cell text-fg-muted whitespace-nowrap">{formatDate(doc.uploadedAt)}</TD>
                       <TD>
-                        <Badge variant={s.variant} dot>
-                          {inFlight && <Loader2 className="size-3 animate-spin" />}
-                          {s.label}
-                        </Badge>
+                        <span title={doc.indexError}>
+                          <Badge variant={s.variant} dot>
+                            {(inFlight || documentIsIndexing(doc)) && <Loader2 className="size-3 animate-spin" />}
+                            {s.label}
+                          </Badge>
+                        </span>
                       </TD>
                       <TD>
                         <RowActions
@@ -218,6 +228,9 @@ export const DocumentsPage: React.FC = () => {
                           items={[
                             ...(doc.status === 'ready'
                               ? [{ id: 'open', label: 'Open', icon: <Eye />, onClick: () => openDocument(doc.id) }]
+                              : []),
+                            ...(doc.status === 'ready' && doc.indexStatus === 'failed'
+                              ? [{ id: 'reindex', label: 'Retry indexing', icon: <RotateCw />, onClick: () => reindexDocument(doc.id) }]
                               : []),
                             { id: 'delete', label: 'Delete', icon: <Trash2 />, destructive: true, onClick: () => setDeletingId(doc.id) },
                           ]}

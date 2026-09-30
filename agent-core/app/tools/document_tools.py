@@ -1,4 +1,5 @@
-"""Document tools. Questions about content go through RAG, never by sending whole files to the LLM."""
+"""Document tools. Questions about content go through semantic search in the backend (Gemini
+embeddings + pgvector), never by sending whole files to the LLM."""
 
 from typing import Literal
 
@@ -8,7 +9,9 @@ from app.backend.schemas import Document
 from app.rag.schemas import RetrievedChunk
 from app.schemas.tool import ToolDomain, ToolInput, ToolOutput, ToolRisk
 from app.tools.common import ID, Listing, listing
-from app.tools.registry import ToolContext, ToolDefinition, ToolError
+from app.tools.registry import ToolContext, ToolDefinition
+
+NO_RESULTS = "No relevant document content found."
 
 
 class GetDocumentsIn(ToolInput):
@@ -33,19 +36,25 @@ async def get_document(ctx: ToolContext, args: GetDocumentIn) -> Document:
 class SearchDocumentsIn(ToolInput):
     query: str = Field(min_length=2, max_length=500, description="What to look for in the user's uploaded documents")
     document_ids: list[str] | None = Field(default=None, max_length=20, description="Restrict to these documents")
-    limit: int = Field(default=4, ge=1, le=10)
+    limit: int | None = Field(default=None, ge=1, le=10, description="How many passages (default: server setting)")
 
 
 class SearchResult(ToolOutput):
     query: str
     chunks: list[RetrievedChunk]
+    message: str | None = None  # "No relevant document content found." when nothing matched
 
 
 async def search_documents(ctx: ToolContext, args: SearchDocumentsIn) -> SearchResult:
-    if ctx.rag is None:
-        raise ToolError("Document search is not available.")
-    chunks = await ctx.rag.search(ctx.backend, ctx.user.user_id, args.query, k=args.limit, document_ids=args.document_ids)
-    return SearchResult(query=args.query, chunks=chunks)
+    # A real backend request; the backend scopes the search to this user's own documents.
+    found = await ctx.backend.search_documents(args.query, top_k=args.limit, document_ids=args.document_ids)
+    chunks = [
+        RetrievedChunk(chunk_id=h.chunk_id, document_id=h.document_id, document_name=h.document_name,
+                       page_number=h.page_number, chunk_index=h.chunk_index, text=h.content, score=h.similarity)
+        for h in found.results
+    ]
+    return SearchResult(query=args.query, chunks=chunks,
+                        message=None if chunks else (found.message or NO_RESULTS))
 
 
 TOOLS = [
@@ -53,6 +62,6 @@ TOOLS = [
                    ToolDomain.DOCUMENTS, ToolRisk.READ, GetDocumentsIn, Listing[Document], get_documents),
     ToolDefinition("get_document", "Get one document's metadata by ID.", ToolDomain.DOCUMENTS, ToolRisk.READ,
                    GetDocumentIn, Document, get_document),
-    ToolDefinition("search_documents", "Semantic search over the user's uploaded documents. Returns the most relevant passages with their source document; answer from these passages and cite the document name.",
+    ToolDefinition("search_documents", "Semantic search over the user's uploaded documents. Returns the most relevant passages with their source (document name and page). Answer only from these passages and cite the source; if nothing relevant is found, say so.",
                    ToolDomain.DOCUMENTS, ToolRisk.READ, SearchDocumentsIn, SearchResult, search_documents),
 ]

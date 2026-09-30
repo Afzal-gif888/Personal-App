@@ -7,6 +7,7 @@ from pydantic import Field
 from app.models.enums import (
     AgentRunStatus,
     ApprovalStatus,
+    DocumentIndexStatus,
     DocumentStatus,
     MessageRole,
     NotificationStatus,
@@ -33,6 +34,33 @@ class DocumentOut(APIModel):
     uploaded_at: UTCDateTime
     processed_at: UTCDateTime | None
     download_url: str
+    # Document search: "indexed" means the assistant can search this document's content.
+    index_status: DocumentIndexStatus
+    index_error: str | None = None
+    chunk_count: int = 0
+    indexed_at: UTCDateTime | None = None
+
+
+class DocumentSearchIn(InputModel):
+    query: str = Field(min_length=2, max_length=1000)
+    top_k: int | None = Field(default=None, ge=1, le=20)
+    document_ids: list[uuid.UUID] | None = Field(default=None, max_length=20)
+
+
+class DocumentSearchHitOut(APIModel):
+    chunk_id: uuid.UUID
+    document_id: uuid.UUID
+    document_name: str
+    chunk_index: int
+    page_number: int | None
+    content: str
+    similarity: float
+
+
+class DocumentSearchOut(APIModel):
+    query: str
+    results: list[DocumentSearchHitOut]
+    message: str | None = None  # set when nothing relevant was found
 
 
 class DocumentUpdate(InputModel):

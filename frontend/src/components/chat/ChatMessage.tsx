@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { Copy, Check, ChevronRight, RotateCcw, AlertCircle, CircleCheck } from 'lucide-react';
 import type { ChatMessage as ChatMessageType } from '../../types';
 import { ActionCard } from './ActionCard';
-import { LogoIcon } from '../ui/Logo';
 import { cn } from '../../utils/cn';
 
 export interface ChatMessageProps {
@@ -60,13 +59,20 @@ export const ChatMessageItem: React.FC<ChatMessageProps> = ({ message, onActionD
   }
 
   return (
-    <div className="group flex gap-3">
-      <LogoIcon size={28} className="mt-0.5" />
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 h-7">
-          <span className="text-sm font-semibold text-fg">Assistant</span>
+    <div className="group">
+      <div className="min-w-0">
+        {isError && (
+          <p className="flex items-center gap-1.5 text-sm text-danger mb-1">
+            <AlertCircle className="size-4" />
+            {message.metadata?.error || "The request couldn't be completed."}
+          </p>
+        )}
+        <div className="text-sm text-fg-muted leading-relaxed whitespace-pre-wrap break-words">{renderInline(text)}</div>
+
+        {/* Just the reply: time and actions sit quietly underneath, like the user's own messages. */}
+        <div className="mt-1 flex items-center gap-1 h-7">
           <span className="text-xs text-fg-faint">{time}</span>
-          <div className="ml-auto flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
             <button
               onClick={handleCopy}
               className="p-1.5 rounded-md text-fg-faint hover:text-fg hover:bg-hover"
@@ -85,14 +91,6 @@ export const ChatMessageItem: React.FC<ChatMessageProps> = ({ message, onActionD
             )}
           </div>
         </div>
-
-        {isError && (
-          <p className="flex items-center gap-1.5 text-sm text-danger mb-1">
-            <AlertCircle className="size-4" />
-            {message.metadata?.error || "The request couldn't be completed."}
-          </p>
-        )}
-        <div className="text-sm text-fg-muted leading-relaxed whitespace-pre-wrap break-words">{renderInline(text)}</div>
 
         {steps.length > 0 && (
           <div className="mt-3">

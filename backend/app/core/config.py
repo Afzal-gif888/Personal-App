@@ -67,6 +67,23 @@ class Settings(BaseSettings):
     emailjs_timeout_seconds: float = 15.0
     app_base_url: str = "http://localhost:5173"  # links in emails
 
+    # Document search (RAG): Gemini embeddings stored in PostgreSQL + pgvector. Documents are
+    # embedded once when uploaded; a search embeds only the query.
+    embedding_provider: Literal["", "gemini"] = "gemini"  # "" turns document search off
+    embedding_api_key: str = ""  # a Gemini API key (never sent to the frontend)
+    embedding_model: str = ""  # e.g. gemini-embedding-2; required when the provider is set
+    # Must equal the document_chunks.embedding column size (a migration changes it).
+    embedding_dimensions: int = 768
+    embedding_base_url: str = "https://generativelanguage.googleapis.com/v1beta"
+    embedding_timeout_seconds: float = 60.0
+    document_search_top_k: int = Field(default=5, ge=1, le=20)
+    # Cosine similarity below this is "not relevant". Calibrated on a real PDF with gemini-embedding-2:
+    # matching passages scored 0.68-0.75, unrelated questions at most 0.62.
+    document_search_min_similarity: float = Field(default=0.65, ge=0, le=1)
+    # Smaller chunks give sharper matches than long mixed-topic ones (measured: 0.72 vs 0.67).
+    document_chunk_chars: int = Field(default=600, ge=200, le=8000)
+    document_chunk_overlap: int = Field(default=100, ge=0)
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, value):
@@ -111,6 +128,10 @@ class Settings(BaseSettings):
         if value not in ("", "anthropic"):
             raise ValueError("LLM_PROVIDER must be empty or 'anthropic'")
         return value
+
+    @property
+    def embeddings_configured(self) -> bool:
+        return bool(self.embedding_provider and self.embedding_api_key and self.embedding_model)
 
     @property
     def llm_configured(self) -> bool:

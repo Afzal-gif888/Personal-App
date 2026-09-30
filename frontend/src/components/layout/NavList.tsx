@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import type { LucideIcon } from 'lucide-react';
 import { NAV_GROUPS, isNavItemActive, type NavItem } from '../../config/navigation';
 import { useApprovals } from '../../hooks/useApprovals';
 import { Tooltip } from '../ui/Tooltip';
@@ -40,6 +41,30 @@ export const NavList: React.FC<NavListProps> = ({ collapsed = false, onNavigate 
   );
 };
 
+/**
+ * A section icon in its colour: a lightly tinted tile normally, a solid tile with a white icon when
+ * it's the current page. The colour comes from the item (a --color-nav-* token).
+ */
+export const NavIcon: React.FC<{ icon: LucideIcon; color: string; active?: boolean; size?: 'sm' | 'md' }> = ({
+  icon: Icon,
+  color,
+  active = false,
+  size = 'sm',
+}) => (
+  <span
+    style={{ '--nav': color } as React.CSSProperties}
+    className={cn(
+      'inline-flex shrink-0 items-center justify-center rounded-md transition-colors',
+      size === 'sm' ? 'size-6' : 'size-7',
+      active
+        ? 'bg-[var(--nav)] text-white shadow-xs'
+        : 'bg-[color-mix(in_srgb,var(--nav)_12%,transparent)] text-[var(--nav)] group-hover:bg-[color-mix(in_srgb,var(--nav)_20%,transparent)]'
+    )}
+  >
+    <Icon className={size === 'sm' ? 'size-3.5' : 'size-4'} strokeWidth={2.2} />
+  </span>
+);
+
 export const NavRow: React.FC<{
   item: NavItem;
   collapsed?: boolean;
@@ -62,7 +87,7 @@ export const NavRow: React.FC<{
         active ? 'bg-hover text-fg' : 'text-fg-muted hover:bg-subtle hover:text-fg'
       )}
     >
-      <Icon className={cn('size-4 shrink-0', active ? 'text-accent' : 'text-fg-subtle group-hover:text-fg-muted')} />
+      <NavIcon icon={Icon} color={item.color} active={active} />
       {!collapsed && <span className="truncate">{item.label}</span>}
       {hasCount &&
         (collapsed ? (

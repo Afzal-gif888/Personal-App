@@ -6,14 +6,14 @@ A personal AI workspace for students. One place for coursework, calendar, bills,
 
 ## Quick start
 
-With PostgreSQL running and both `.env` files in place, start everything from the project root:
+With Docker Desktop running and both `.env` files in place, start everything from the project root:
 
 ```powershell
 .\start.ps1          # or double-click start.bat
 .\stop.ps1           # stop everything
 ```
 
-The script applies database migrations, opens the backend (`:8000`), the [Agent Core](agent-core) (`:8001`) and the frontend (`:5173`) in their own windows, waits until each responds, and opens the app. It also accepts `-SkipMigrations` and `-NoBrowser`.
+The script starts the database container if needed (PostgreSQL + pgvector, see below), applies database migrations, opens the backend (`:8000`), the [Agent Core](agent-core) (`:8001`) and the frontend (`:5173`) in their own windows, waits until each responds, and opens the app. It also accepts `-SkipMigrations` and `-NoBrowser`.
 
 ## Workflow
 
@@ -63,7 +63,8 @@ pip install -r requirements-dev.txt
 copy .env.example .env               # then set DATABASE_URL
 alembic upgrade head
 uvicorn app.main:app --reload        # http://localhost:8000/docs
-pytest                               # SQLite by default; set TEST_DATABASE_URL to run on Postgres
+pytest                               # SQLite by default (vector-search tests skipped)
+$env:TEST_DATABASE_URL="postgresql://agentos:agentos@127.0.0.1:5433/agentos_test"; pytest   # full suite on pgvector
 ```
 
 The assistant runs in the [Agent Core](agent-core) (`AGENT_CORE_MODE=agent`); set `LLM_API_KEY` in `agent-core/.env` (a free Gemini key works). There is no mock mode: without a key the assistant replies that it isn't set up.
@@ -90,7 +91,40 @@ jobs/ (scheduler) · notifications/ · storage/ · core/ (config, errors, securi
 
 ### Background jobs
 
-The scheduler delivers due reminders, flags due/overdue bills, warns 30 minutes before events and expires stale approvals. Each notification carries a dedupe key, so running several schedulers never duplicates one. Enable it in-process with `SCHEDULER_ENABLED=true` (single API instance), or run `python -m scripts.run_scheduler` (add `--once` for cron). Only in-app notifications exist today. The email preference is stored, but no email is sent.
+The scheduler delivers due reminders, flags due/overdue bills, warns 30 minutes before events and expires stale approvals. Each notification carries a dedupe key, so running several schedulers never duplicates one. Enable it in-process with `SCHEDULER_ENABLED=true` (single API instance), or run `python -m scripts.run_scheduler` (add `--once` for cron). Reminder-type notifications are also emailed (EmailJS) when the user keeps "Email me reminders" on. The scheduler also indexes documents for search (pending ones, retries, and re-indexing after an embedding model change).
+
+### Database (PostgreSQL + pgvector)
+
+The database runs in Docker from [`docker-compose.yml`](docker-compose.yml): PostgreSQL 18 with the pgvector extension, on host port **5433** (so it can sit next to a native PostgreSQL on 5432). Data lives in the `pgdata` Docker volume.
+
+```powershell
+docker compose up -d db                                   # start (start.ps1 does this for you)
+cd backend; alembic upgrade head                          # migrate (start.ps1 does this too)
+docker compose stop db                                    # stop (data is kept)
+docker compose exec db psql -U agentos -d agentos         # psql shell
+```
+
+`backend/.env`: `DATABASE_URL=postgresql://agentos:agentos@127.0.0.1:5433/agentos` (use `127.0.0.1`, not `localhost`: on Windows `localhost` tries IPv6 first and the container only listens on IPv4). Inspect pgvector in psql:
+
+```sql
+SELECT extname, extversion FROM pg_extension WHERE extname = 'vector';
+\d document_chunks
+SELECT d.original_filename, d.index_status, count(c.id) AS chunks, vector_dims(min(c.embedding::text)::vector) AS dims
+FROM documents d LEFT JOIN document_chunks c ON c.document_id = d.id GROUP BY d.id;
+```
+
+### Document search (RAG)
+
+```
+upload  →  extract text (per PDF page)  →  600-char chunks  →  Gemini embeddings (once)  →  document_chunks (pgvector)
+question  →  Agent Core search_documents tool  →  POST /api/v1/documents/search  →  embed the question  →  cosine search  →  passages + sources  →  Gemini answer
+```
+
+- **Embeddings**: `gemini-embedding-2` with `outputDimensionality=768` (the API default is 3072; 768 keeps the column within pgvector's 2000-dimension HNSW limit). The model ignores `taskType`, so queries and passages get the task as a text prefix (`task: search result | query: …` / `title: … | text: …`). Set in `backend/.env`: `EMBEDDING_PROVIDER`, `EMBEDDING_API_KEY` (a Gemini key; never sent to the frontend), `EMBEDDING_MODEL`, `EMBEDDING_DIMENSIONS`.
+- **Storage**: `document_chunks` (`embedding vector(768)`, page number, content hash, metadata), foreign keys to `documents` and `users` with `ON DELETE CASCADE`, unique per (document, chunk index).
+- **Search**: cosine distance, HNSW index (`vector_cosine_ops`), always filtered by the signed-in user's id; results below `DOCUMENT_SEARCH_MIN_SIMILARITY` (0.65, calibrated on real notes) are dropped, so an unrelated question returns "No relevant document content found."
+- **Cost**: a document is embedded once when uploaded (100 passages per request); re-indexing unchanged text reuses the stored vectors. Each search embeds only the question. Free-tier quotas are per minute; indexing waits and retries, and failed documents are retried by the scheduler or with "Retry indexing" on the Documents page.
+- **Boundaries**: Agent Core never touches the database. It calls the backend API with the user's token. The frontend only sees the indexing status.
 
 ## Frontend
 

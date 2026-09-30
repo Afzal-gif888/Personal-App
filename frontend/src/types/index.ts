@@ -45,6 +45,8 @@ export interface Reminder {
 }
 
 export type DocumentStatus = 'ready' | 'processing' | 'uploading' | 'failed';
+/** Whether the assistant can search the document's content (server-side embeddings). */
+export type DocumentIndexStatus = 'pending' | 'indexing' | 'indexed' | 'failed' | 'unsupported';
 
 export interface Document {
   id: string;
@@ -55,6 +57,8 @@ export interface Document {
   uploadedAt: string;
   category: string;
   status: DocumentStatus;
+  indexStatus: DocumentIndexStatus;
+  indexError?: string;
   url?: string;
   progress?: number; // 0 - 100 for uploading simulation
 }

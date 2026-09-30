@@ -6,10 +6,10 @@ import { useApprovals } from '../../hooks/useApprovals';
 import { cn } from '../../utils/cn';
 
 const ITEMS = [
-  { label: 'Home', icon: Home, path: '/dashboard' },
-  { label: 'Assistant', icon: MessageSquare, path: '/chat' },
-  { label: 'Approvals', icon: Inbox, path: '/approvals' },
-  { label: 'Tasks', icon: CheckSquare, path: '/tasks' },
+  { label: 'Home', icon: Home, path: '/dashboard', color: 'var(--color-nav-home)' },
+  { label: 'Assistant', icon: MessageSquare, path: '/chat', color: 'var(--color-nav-assistant)' },
+  { label: 'Approvals', icon: Inbox, path: '/approvals', color: 'var(--color-nav-approvals)' },
+  { label: 'Tasks', icon: CheckSquare, path: '/tasks', color: 'var(--color-nav-tasks)' },
 ];
 
 export const BottomNav: React.FC = () => {
@@ -34,9 +34,9 @@ export const BottomNav: React.FC = () => {
           const Icon = item.icon;
           const active = location.pathname.startsWith(item.path);
           return (
-            <NavLink key={item.path} to={item.path} className={itemClass(active)}>
+            <NavLink key={item.path} to={item.path} className={itemClass(active)} style={active ? { color: item.color } : undefined}>
               <span className="relative">
-                <Icon className="size-5" strokeWidth={active ? 2.2 : 1.8} />
+                <Icon className="size-5" strokeWidth={active ? 2.4 : 1.9} style={{ color: item.color }} />
                 {item.path === '/approvals' && pendingCount > 0 && (
                   <span className="absolute -top-1 -right-2 tabular min-w-4 h-4 px-1 rounded-full bg-accent text-white text-2xs leading-4 text-center">
                     {pendingCount}

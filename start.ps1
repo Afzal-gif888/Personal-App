@@ -18,8 +18,12 @@ $root = $PSScriptRoot
 $pidFile = Join-Path $root ".agentos-pids"
 
 function Test-Port([int]$Port) {
-    $client = New-Object System.Net.Sockets.TcpClient
-    try { $client.Connect("localhost", $Port); return $true } catch { return $false } finally { $client.Close() }
+    # IPv4 first (Docker publishes on 127.0.0.1), then IPv6 (Vite listens on ::1), each with a short timeout.
+    foreach ($address in "127.0.0.1", "::1") {
+        $client = New-Object System.Net.Sockets.TcpClient([System.Net.IPAddress]::Parse($address).AddressFamily)
+        try { if ($client.ConnectAsync($address, $Port).Wait(700)) { return $true } } catch { } finally { $client.Close() }
+    }
+    return $false
 }
 
 function Wait-Http([string]$Url, [int]$Seconds) {
@@ -54,8 +58,21 @@ if (-not (Test-Path (Join-Path $root "frontend\node_modules"))) {
     Push-Location (Join-Path $root "frontend"); npm ci; $ok = $?; Pop-Location
     if (-not $ok) { Fail "npm ci failed." }
 }
-if (-not (Test-Port 5432)) { Fail "PostgreSQL is not reachable on localhost:5432. Start it (services.msc -> postgresql) and retry." }
-Write-Host "  Prerequisites OK (PostgreSQL is running)" -ForegroundColor Green
+# PostgreSQL + pgvector runs in Docker (docker-compose.yml). Use the port from DATABASE_URL.
+$dbLine = Get-Content (Join-Path $root "backend\.env") | Where-Object { $_ -match '^DATABASE_URL=' } | Select-Object -First 1
+$dbPort = if ($dbLine -match ':(\d+)/') { [int]$Matches[1] } else { 5432 }
+if (-not (Test-Port $dbPort)) {
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { Fail "PostgreSQL is not reachable on port $dbPort and Docker is not installed." }
+    Write-Host "  Starting PostgreSQL + pgvector (docker compose up -d db)..." -ForegroundColor Yellow
+    $ErrorActionPreference = "Continue"
+    & docker compose -f (Join-Path $root "docker-compose.yml") up -d db 2>&1 | ForEach-Object { "    $_" }
+    $ErrorActionPreference = "Stop"
+    $deadline = (Get-Date).AddSeconds(60)
+    while (-not (Test-Port $dbPort) -and (Get-Date) -lt $deadline) { Start-Sleep -Seconds 2 }
+    if (-not (Test-Port $dbPort)) { Fail "PostgreSQL did not start on port $dbPort. Is Docker Desktop running?" }
+    Start-Sleep -Seconds 2  # accepting TCP a moment before it accepts logins
+}
+Write-Host "  Prerequisites OK (PostgreSQL + pgvector on port $dbPort)" -ForegroundColor Green
 
 # --- database ------------------------------------------------------------------------------------
 Push-Location (Join-Path $root "backend")

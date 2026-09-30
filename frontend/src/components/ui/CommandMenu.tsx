@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Plus, MessageSquare, CornerDownLeft } from 'lucide-react';
 import { useUIStore } from '../../stores/uiStore';
 import { ALL_NAV_ITEMS } from '../../config/navigation';
+import { NavIcon } from '../layout/NavList';
 import { cn } from '../../utils/cn';
 
 interface CommandItem {
@@ -21,7 +22,7 @@ const COMMANDS: CommandItem[] = [
   { id: 'new-expense', label: 'Log an expense', group: 'Actions', icon: <Plus />, path: '/expenses' },
   ...ALL_NAV_ITEMS.map<CommandItem>((item) => {
     const Icon = item.icon;
-    return { id: `nav-${item.id}`, label: item.label, hint: item.description, group: 'Go to', icon: <Icon />, path: item.path };
+    return { id: `nav-${item.id}`, label: item.label, hint: item.description, group: 'Go to', icon: <NavIcon icon={Icon} color={item.color} />, path: item.path };
   }),
 ];
 
@@ -124,7 +125,7 @@ export const CommandMenu: React.FC = () => {
                         active ? 'bg-hover' : 'hover:bg-subtle'
                       )}
                     >
-                      <span className="text-fg-subtle [&_svg]:size-4">{item.icon}</span>
+                      <span className="flex text-fg-subtle [&>svg]:size-4">{item.icon}</span>
                       <span className="text-sm font-medium text-fg">{item.label}</span>
                       {item.hint && <span className="text-sm text-fg-faint truncate">{item.hint}</span>}
                       {active && <CornerDownLeft className="ml-auto size-3.5 text-fg-faint shrink-0" />}

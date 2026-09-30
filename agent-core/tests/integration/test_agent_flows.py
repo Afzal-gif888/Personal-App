@@ -78,6 +78,30 @@ async def test_document_question_uses_rag(harness):
     assert "DOCUMENTS_RETRIEVED" in types(r)
     assert r.retrieved_documents and r.retrieved_documents[0]["document_name"] == "DBMS notes.txt"
     assert "Normalization organises tables" in r.response
+    # A real, recorded search_documents call through the backend API (never a database).
+    [search] = [c for c in r.tool_calls if c.name == "search_documents"]
+    assert search.status == "completed" and search.output["chunks"]
+    assert any(method == "POST" and path.endswith("/documents/search") for method, path in harness.fake.calls)
+    assert not any(path.endswith("/download") for _, path in harness.fake.calls)  # no re-downloading or re-embedding
+
+
+async def test_document_question_with_no_matching_content(harness):
+    harness.fake.add_document(USER_A, "ML notes.txt", "Overfitting happens with high variance.")
+    r = await harness.run("What does my document say about quantum computing?")
+    [search] = [c for c in r.tool_calls if c.name == "search_documents"]
+    assert search.output["chunks"] == [] and search.output["message"] == "No relevant document content found."
+    assert r.retrieved_documents == []
+    system = harness.services.llm.calls[-1]["system"]
+    assert "No relevant document content found" in system
+
+
+async def test_document_search_outage_is_reported_not_invented(harness):
+    harness.fake.add_document(USER_A, "ML notes.txt", "Overfitting happens with high variance.")
+    harness.fake.fail[r"/documents/search"] = 503
+    r = await harness.run("According to my notes, what causes overfitting?")
+    [search] = [c for c in r.tool_calls if c.name == "search_documents"]
+    assert search.status == "failed" and r.retrieved_documents == []
+    assert "Document search was unavailable" in harness.services.llm.calls[-1]["system"]
 
 
 async def test_unrelated_request_does_not_touch_documents(harness):

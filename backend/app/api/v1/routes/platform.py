@@ -3,7 +3,7 @@
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, Request, UploadFile, status
 from fastapi.responses import FileResponse
 
 from app.api.deps import DB, AccessToken, CurrentUser, Paging, UserZone, client_ip
@@ -19,6 +19,9 @@ from app.schemas.platform import (
     ConversationUpdate,
     DashboardOut,
     DocumentOut,
+    DocumentSearchHitOut,
+    DocumentSearchIn,
+    DocumentSearchOut,
     DocumentUpdate,
     MessageIn,
     MessageOut,
@@ -27,6 +30,7 @@ from app.schemas.platform import (
     SendMessageOut,
     UnreadCount,
 )
+from app.rag import indexing
 from app.services import agent_runs, approvals, chat, dashboard, documents, notifications
 from app.storage import get_storage
 
@@ -54,10 +58,38 @@ def list_documents(
 def upload_document(
     user: CurrentUser,
     db: DB,
+    background: BackgroundTasks,
     file: Annotated[UploadFile, File()],
     category: Annotated[str | None, Form(max_length=100)] = None,
 ):
-    return documents.to_out(documents.upload(db, user, file.filename or "", file.file, category))
+    doc = documents.upload(db, user, file.filename or "", file.file, category)
+    background.add_task(indexing.index_document, doc.id)  # embeds once, after the response is sent
+    return documents.to_out(doc)
+
+
+@router.post(
+    "/documents/search",
+    response_model=DocumentSearchOut,
+    tags=["documents"],
+    dependencies=[Depends(rate_limit("document_search", "rate_limit_chat_per_minute"))],
+)
+def search_documents(data: DocumentSearchIn, user: CurrentUser, db: DB):
+    """Semantic search over the signed-in user's indexed documents (Gemini embeddings + pgvector)."""
+    hits = indexing.search(db, user, data.query, top_k=data.top_k, document_ids=data.document_ids)
+    return DocumentSearchOut(
+        query=data.query,
+        results=[DocumentSearchHitOut.model_validate(h, from_attributes=True) for h in hits],
+        message=None if hits else indexing.NO_RESULTS,
+    )
+
+
+@router.post("/documents/{doc_id}/reindex", response_model=DocumentOut, tags=["documents"])
+def reindex_document(doc_id: uuid.UUID, user: CurrentUser, db: DB, background: BackgroundTasks):
+    """Retry indexing (e.g. after a failure). Unchanged text reuses the stored embeddings."""
+    doc = documents.get_document(db, user, doc_id)
+    indexing.reindex_request(db, doc)
+    background.add_task(indexing.index_document, doc.id)
+    return documents.to_out(doc)
 
 
 @router.get("/documents/{doc_id}", response_model=DocumentOut, tags=["documents"])

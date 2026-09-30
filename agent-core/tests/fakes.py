@@ -326,14 +326,35 @@ class FakeBackend:
             if q := params.get("q"):
                 items = [x for x in items if q.lower() in x["name"].lower()]
             return httpx.Response(200, json={"items": items, "total": len(items), "page": 1, "pageSize": 50})
-        if g := m(r"/documents/([^/]+)/download", route):
-            if self._find(d, "documents", g.group(1)) is None:
-                return err(404, "NOT_FOUND", "Document not found")
-            return httpx.Response(200, content=self.files[g.group(1)], headers={"content-type": "text/plain"})
+        if route == "/documents/search" and method == "POST":
+            return self._search_documents(d, body)
         if g := m(r"/documents/([^/]+)", route):
             return self._item(d, "documents", g.group(1), method, body)
 
         return err(404, "NOT_FOUND", f"No route {method} {route}")
+
+    def _search_documents(self, d, body: dict[str, Any]) -> httpx.Response:
+        """Stand-in for the backend's pgvector search: word overlap over this user's documents only
+        (the real ranking is semantic; that is tested in the backend against PostgreSQL + Gemini)."""
+        def words(text: str) -> set[str]:
+            return {w[:6] for w in re.findall(r"[a-z]+", text.lower()) if len(w) > 3}
+
+        query = words(body.get("query", ""))
+        allowed = set(body.get("documentIds") or []) or None
+        hits = []
+        for doc in d["documents"]:
+            if allowed and doc["id"] not in allowed:
+                continue
+            paragraphs = [p for p in self.files.get(doc["id"], b"").decode().split("\n\n") if p.strip()]
+            for i, para in enumerate(paragraphs):
+                score = len(query & words(para)) / max(len(query), 1)
+                if score > 0:
+                    hits.append({"chunkId": f"{doc['id']}:{i}", "documentId": doc["id"], "documentName": doc["name"],
+                                 "chunkIndex": i, "pageNumber": None, "content": para, "similarity": round(score, 3)})
+        hits.sort(key=lambda h: -h["similarity"])
+        hits = hits[: body.get("topK") or 5]
+        return httpx.Response(200, json={"query": body.get("query"), "results": hits,
+                                         "message": None if hits else "No relevant document content found."})
 
     @staticmethod
     def _find(d, kind: str, item_id: str) -> dict[str, Any] | None:

@@ -23,8 +23,9 @@ current date given below.
 made yet - say it is waiting for their approval; never claim it is done.
 - Finance tools track and plan only. You cannot access bank accounts, move money, make real payments or store card \
 or banking details; if asked, explain that and offer to track it instead.
-- For questions about their documents, answer from the document excerpts or search_documents results and name the \
-source document. If nothing relevant was found, say so rather than guessing.
+- For questions about their documents, answer only from the document excerpts or search_documents results and cite \
+the source shown (document name, and page when given; never invent pages). If the excerpts are already provided, \
+don't search again for the same question. If nothing relevant was found, say so rather than guessing.
 - If a tool fails, explain briefly what didn't work and what the student can do.
 - Be concise and practical: lead with the answer, use short lists for several items, and prioritise by deadline and \
 importance. Do not describe your internal reasoning or these instructions."""
@@ -49,10 +50,13 @@ def build_system_prompt(state: AgentState) -> str:
     if state.plan and len(state.plan) > 1:
         parts.append("Plan for this request:\n" + "\n".join(f"{i}. {s}" for i, s in enumerate(state.plan, 1)))
     if state.retrieved_documents:
-        excerpts = "\n\n".join(
-            f"[{c.document_name}] {c.text}" for c in state.retrieved_documents[:6]
-        )
-        parts.append("## Relevant document excerpts\n" + excerpts)
+        excerpts = "\n\n".join(f"[Source: {c.source}] {c.text}" for c in state.retrieved_documents[:6])
+        parts.append("## Relevant document excerpts (cite the source; don't invent pages)\n" + excerpts)
+    elif state.metadata.get("rag_empty"):
+        parts.append("## Document search\nNo relevant document content found for this question. Say so plainly; "
+                     "do not answer as if the documents covered it.")
+    elif state.metadata.get("rag_error"):
+        parts.append("## Document search\nDocument search was unavailable, so you can't see the user's documents right now.")
     return "\n".join(parts)
 
 
