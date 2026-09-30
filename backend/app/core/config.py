@@ -115,6 +115,10 @@ class Settings(BaseSettings):
                 raise ValueError("JWT_SECRET and JWT_REFRESH_SECRET must be set in production")
             if "*" in self.cors_origins:
                 raise ValueError("Wildcard CORS_ORIGINS is not allowed in production")
+            # A missing DATABASE_URL would otherwise fall back to the localhost default and fail
+            # later with a confusing connection error.
+            if self.is_sqlite or any(h in self.database_url for h in ("@localhost", "@127.0.0.1")):
+                raise ValueError("DATABASE_URL must point at the production database (e.g. Neon) in production")
         return self
 
     @property
