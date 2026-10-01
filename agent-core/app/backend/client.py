@@ -71,9 +71,14 @@ class BackendClient:
     async def _request(self, method: str, path: str, *, params=None, json=None) -> Any:
         try:
             resp = await self._http.request(method, path, params=_clean(params or {}), json=json)
-        except httpx.TimeoutException:
+        except httpx.TimeoutException as exc:
+            logger.warning("Backend call timed out", extra={"method": method, "path": path,
+                                                             "base_url": str(self._http.base_url), "error": type(exc).__name__})
             raise BackendUnavailableError("The AgentOS service timed out.")
-        except httpx.HTTPError:
+        except httpx.HTTPError as exc:
+            # Usually BACKEND_API_URL is wrong (host, port or scheme): log where we tried to go.
+            logger.warning("Backend unreachable", extra={"method": method, "path": path,
+                                                         "base_url": str(self._http.base_url), "error": f"{type(exc).__name__}: {exc}"})
             raise BackendUnavailableError("Couldn't reach the AgentOS service.")
         if resp.status_code == 204:
             return None
