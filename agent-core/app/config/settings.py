@@ -66,6 +66,14 @@ class Settings(BaseSettings):
 
     # Document search is done by the backend (Gemini embeddings + pgvector); nothing to set here.
 
+    @field_validator("llm_provider", mode="before")
+    @classmethod
+    def _validate_provider(cls, value: str) -> str:
+        v = str(value or "gemini").strip().lower()
+        if v not in ("openrouter", "gemini", "anthropic", "freellmapi"):
+            raise ValueError(f"Unknown llm_provider: {v}")
+        return v
+
     @field_validator("backend_api_url")
     @classmethod
     def _strip_slash(cls, value: str) -> str:
