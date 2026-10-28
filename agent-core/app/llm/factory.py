@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 
 def _create(settings: Settings) -> LLMProvider:
     provider = settings.llm_provider
-    if not settings.llm_api_key.get_secret_value():
+    key = settings.llm_api_key.get_secret_value()
+    if not key:
         if settings.app_env == "production":
             raise RuntimeError(f"LLM_PROVIDER={provider} requires LLM_API_KEY")
         logger.error("LLM_API_KEY is empty: the assistant will report that it isn't configured",
@@ -24,6 +25,10 @@ def _create(settings: Settings) -> LLMProvider:
         from app.llm.openrouter import OpenRouterProvider
 
         return OpenRouterProvider(settings)
+    if provider == "freellmapi":
+        from app.llm.freellmapi import FreeLLMAPIProvider
+
+        return FreeLLMAPIProvider(settings)
     from app.llm.gemini import GeminiProvider
 
     return GeminiProvider(settings)

@@ -2,7 +2,7 @@ import uuid
 from zoneinfo import ZoneInfo
 
 from pydantic import ValidationError
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.agent import remote
@@ -33,13 +33,43 @@ def get_approval(db: Session, user: User, approval_id: uuid.UUID) -> Approval:
 def approve(
     db: Session, user: User, tz: ZoneInfo, approval_id: uuid.UUID, *, ip: str | None = None, user_token: str | None = None
 ) -> Approval:
-    approval = _pending(db, user, approval_id)
+    # 1. Expire if past TTL
+    approval = get_approval(db, user, approval_id)
+    if approval.status == ApprovalStatus.PENDING and approval.expires_at and as_utc(approval.expires_at) <= utcnow():
+        _expire(db, approval)
+        db.commit()
+        raise ConflictError(f"This action was already {approval.status.value}", code="APPROVAL_NOT_PENDING")
+
+    # 2. Atomic state transition: PENDING -> EXECUTING (guarantees exactly-once execution)
+    stmt = (
+        update(Approval)
+        .where(
+            Approval.id == approval_id,
+            Approval.user_id == user.id,
+            Approval.status == ApprovalStatus.PENDING,
+        )
+        .values(status=ApprovalStatus.EXECUTING)
+    )
+    res = db.execute(stmt)
+    db.commit()
+    if res.rowcount == 0:
+        existing = get_approval(db, user, approval_id)
+        if existing.status == ApprovalStatus.EXECUTING:
+            raise ConflictError("This action is currently being executed", code="APPROVAL_ALREADY_EXECUTING")
+        raise ConflictError(f"This action was already {existing.status.value}", code="APPROVAL_NOT_PENDING")
+
+    approval = get_approval(db, user, approval_id)
     from_agent_core = (approval.payload or {}).get("source") == remote.SOURCE
     tool = None if from_agent_core else TOOLS.get(approval.action)
     call = db.get(ToolCall, approval.tool_call_id) if approval.tool_call_id else None
     if not from_agent_core and tool is None:
+        approval.status = ApprovalStatus.FAILED
+        approval.result = {"error": "This action is no longer supported"}
+        db.commit()
         raise ConflictError("This action is no longer supported")
     if from_agent_core and not user_token:
+        approval.status = ApprovalStatus.PENDING  # revert if cannot execute
+        db.commit()
         raise ConflictError("This action must be approved from the app")
 
     try:
@@ -51,14 +81,21 @@ def approve(
             assert tool is not None
             with db.begin_nested():
                 result = tool.apply(AgentContext(db, user, tz), (approval.payload or {}).get("args", {}))
-    except (AppError, ValidationError) as exc:
-        # Things may have changed since the proposal (e.g. the bill was deleted). Keep it pending so the
-        # user can reject it, and record why it failed.
+    except (AppError, ValidationError, Exception) as exc:
+        # Things may have changed since the proposal. Revert status to pending so the
+        # user can inspect/retry/reject it, and record why it failed.
         message = exc.message if isinstance(exc, AppError) else "the proposed values are no longer valid"
+        approval.status = ApprovalStatus.PENDING
+        approval.result = {"error": message}
         if call:
+            call.status = ToolCallStatus.FAILED
             call.error = f"Apply failed: {message}"
+        _sync_message(db, approval)
+        _settle_run(db, approval.agent_run_id)
         db.commit()
-        raise ValidationFailed(f"Couldn't apply this action: {message}", code="APPROVAL_APPLY_FAILED")
+        if isinstance(exc, (AppError, ValidationError)):
+            raise ValidationFailed(f"Couldn't apply this action: {message}", code="APPROVAL_APPLY_FAILED")
+        raise
 
     now = utcnow()
     approval.status = ApprovalStatus.APPROVED

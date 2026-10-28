@@ -44,6 +44,58 @@ class InMemoryRateLimitBackend(RateLimitBackend):
             self._windows.clear()
 
 
+import logging
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+class RedisRateLimitBackend(RateLimitBackend):
+    """Distributed rate limiting backend using Redis key expiration."""
+
+    def __init__(self, redis_client: Any) -> None:
+        self.redis = redis_client
+
+    def hit(self, key: str, limit: int, window_seconds: int) -> bool:
+        redis_key = f"rl:{key}"
+        try:
+            pipe = self.redis.pipeline()
+            pipe.incr(redis_key)
+            pipe.ttl(redis_key)
+            results = pipe.execute()
+            count, ttl = int(results[0]), int(results[1])
+            if ttl == -1 or count == 1:
+                self.redis.expire(redis_key, window_seconds)
+            return count <= limit
+        except Exception as exc:
+            logger.warning("Redis rate limit failed, allowing request", extra={"error": str(exc)})
+            return True
+
+    def reset(self) -> None:
+        try:
+            keys = self.redis.keys("rl:*")
+            if keys:
+                self.redis.delete(*keys)
+        except Exception:
+            pass
+
+
+def create_rate_limit_backend() -> RateLimitBackend:
+    """Create the configured backend: Redis if redis_url is set, else InMemory."""
+    settings = get_settings()
+    if settings.redis_url:
+        try:
+            import redis
+            client = redis.Redis.from_url(settings.redis_url)
+            return RedisRateLimitBackend(client)
+        except ImportError:
+            logger.warning("redis package not installed, falling back to InMemoryRateLimitBackend")
+            return InMemoryRateLimitBackend()
+        except Exception as exc:
+            logger.warning("Could not connect to Redis, falling back to InMemoryRateLimitBackend: %s", exc)
+            return InMemoryRateLimitBackend()
+    return InMemoryRateLimitBackend()
+
 backend: RateLimitBackend = InMemoryRateLimitBackend()
 
 

@@ -70,7 +70,7 @@ class MockLLMProvider(LLMProvider):
     ) -> LLMResult:
         self.calls.append({"purpose": purpose, "tools": [t.name for t in tools], "messages": len(messages), "system": system})
         # Like the real model is told to: don't search again when the documents were already searched.
-        self._already_searched = "## Relevant document excerpts" in system or "## Document search" in system
+        self._already_searched = "## Relevant document excerpts" in system or "## Document search" in system or any("<context>" in str(m.get("content")) for m in messages)
         if self._scripted is not None:
             if not self._scripted:
                 raise LLMError("The mock provider has no scripted responses left.")
@@ -258,6 +258,8 @@ class MockLLMProvider(LLMProvider):
     @staticmethod
     def _answer(request: str, results: list[tuple[str, dict[str, Any]]], system: str) -> str:
         if not results:
+            if "<context>" in request:
+                return "Based on your documents: " + request.split("<context>", 1)[1].split("</context>")[0][:300].strip()
             if "Relevant document excerpts" in system:
                 return "Based on your documents: " + system.split("Relevant document excerpts", 1)[1][:300].strip()
             return "I can help with your tasks, schedule, reminders, study plans, finances, goals and documents. What would you like to do?"
