@@ -193,9 +193,11 @@ class ToolCallStatus(StrEnum):
 
 class ApprovalStatus(StrEnum):
     PENDING = "pending"
+    EXECUTING = "executing"
     APPROVED = "approved"
     REJECTED = "rejected"
     EXPIRED = "expired"
+    FAILED = "failed"
     CANCELLED = "cancelled"
 
 

@@ -1,0 +1,360 @@
+{
+  "corpus": [
+    {
+      "doc_id": "doc_ml",
+      "title": "Machine Learning Foundations",
+      "chunks": [
+        {
+          "chunk_id": "ml_chunk_1",
+          "page_number": 1,
+          "content": "Machine learning models discover patterns in empirical training datasets. Supervised learning utilizes labelled input-output pairs to approximate an underlying mapping function, whereas unsupervised learning identifies latent structures and clusters without explicit targets."
+        },
+        {
+          "chunk_id": "ml_chunk_2",
+          "page_number": 1,
+          "content": "High variance leads to model overfitting where the estimator memorizes training noise and fails to generalize to unseen test distributions. L1 and L2 regularization penalties constrain weight magnitudes to reduce overfitting and variance."
+        },
+        {
+          "chunk_id": "ml_chunk_3",
+          "page_number": 2,
+          "content": "K-fold cross-validation partitions data into k disjoint subsets to evaluate model generalization on out-of-fold validation sets and prevent statistical data leakage during hyperparameter tuning."
+        },
+        {
+          "chunk_id": "ml_chunk_4",
+          "page_number": 2,
+          "content": "Gradient descent optimization iteratively adjusts model weights in the opposite direction of the loss function gradient, scaled by the learning rate hyperparameter. Adam and RMSprop adapt per-parameter learning rates dynamically."
+        }
+      ]
+    },
+    {
+      "doc_id": "doc_dbms",
+      "title": "Relational Database Management Systems",
+      "chunks": [
+        {
+          "chunk_id": "dbms_chunk_1",
+          "page_number": 1,
+          "content": "Database schema normalization organizes relational table attributes to minimize data redundancy and eliminate update, insertion, and deletion anomalies while maintaining lossless join decomposition."
+        },
+        {
+          "chunk_id": "dbms_chunk_2",
+          "page_number": 1,
+          "content": "First normal form 1NF enforces atomic attribute domain values. Second normal form 2NF eliminates partial functional dependencies of non-prime attributes on any proper subset of candidate keys."
+        },
+        {
+          "chunk_id": "dbms_chunk_3",
+          "page_number": 2,
+          "content": "Third normal form 3NF requires that every non-prime attribute is non-transitively dependent on candidate keys. Boyce-Codd normal form BCNF is stricter and mandates that every non-trivial determinant must be a superkey."
+        },
+        {
+          "chunk_id": "dbms_chunk_4",
+          "page_number": 2,
+          "content": "ACID transaction guarantees ensure reliability: Atomicity through rollback, Consistency through schema invariants, Isolation through concurrency control protocols like two-phase locking 2PL, and Durability through write-ahead logging WAL."
+        }
+      ]
+    },
+    {
+      "doc_id": "doc_os",
+      "title": "Operating Systems Principles",
+      "chunks": [
+        {
+          "chunk_id": "os_chunk_1",
+          "page_number": 1,
+          "content": "Virtual memory decouples the programmer logical address space from physical RAM hardware using page tables and the Memory Management Unit MMU translation lookaside buffer TLB caching."
+        },
+        {
+          "chunk_id": "os_chunk_2",
+          "page_number": 1,
+          "content": "CPU process scheduling algorithms manage core allocation: Round Robin provides preemptive time-sliced fairness, while Shortest Job First SJF minimizes average waiting time across non-preemptive batches."
+        },
+        {
+          "chunk_id": "os_chunk_3",
+          "page_number": 2,
+          "content": "Deadlock occurs when processes are permanently blocked waiting for resources held by each other. The four Coffman conditions are mutual exclusion, hold and wait, no preemption, and circular wait."
+        },
+        {
+          "chunk_id": "os_chunk_4",
+          "page_number": 2,
+          "content": "Inter-process communication IPC mechanisms in POSIX systems include anonymous pipes, named FIFOs, shared memory regions, UNIX domain sockets, and POSIX message queues."
+        }
+      ]
+    },
+    {
+      "doc_id": "doc_net",
+      "title": "Computer Networks and Protocols",
+      "chunks": [
+        {
+          "chunk_id": "net_chunk_1",
+          "page_number": 1,
+          "content": "The TCP three-way handshake establishes a reliable bidirectional connection using SYN, SYN-ACK, and ACK packet sequences to synchronize sequence numbers and receive buffer window sizes."
+        },
+        {
+          "chunk_id": "net_chunk_2",
+          "page_number": 1,
+          "content": "The Domain Name System DNS resolves hierarchical human-readable domain names into numerical IPv4 and IPv6 network IP addresses through recursive resolvers and authoritative name servers."
+        },
+        {
+          "chunk_id": "net_chunk_3",
+          "page_number": 2,
+          "content": "Classless Inter-Domain Routing CIDR and IP subnetting allocate address blocks efficiently using variable-length subnet masks VLSM to conserve address space and aggregate routing tables."
+        },
+        {
+          "chunk_id": "net_chunk_4",
+          "page_number": 2,
+          "content": "HTTP/2 introduces binary framing layers, multiplexed concurrent streams over a single TCP connection, and HPACK header compression to mitigate head-of-line blocking present in HTTP/1.1."
+        }
+      ]
+    },
+    {
+      "doc_id": "doc_algo",
+      "title": "Data Structures and Algorithms",
+      "chunks": [
+        {
+          "chunk_id": "algo_chunk_1",
+          "page_number": 1,
+          "content": "Binary search finds the location of a target key in a sorted array in O(log n) logarithmic time complexity by repeatedly bisecting the active search interval."
+        },
+        {
+          "chunk_id": "algo_chunk_2",
+          "page_number": 1,
+          "content": "Dijkstra algorithm computes single-source shortest paths in graphs with non-negative edge weights using a min-priority queue with O((V + E) log V) time complexity."
+        },
+        {
+          "chunk_id": "algo_chunk_3",
+          "page_number": 2,
+          "content": "Dynamic programming solves complex multi-stage decision problems by decomposing them into overlapping subproblems and memoizing optimal substructure solutions."
+        },
+        {
+          "chunk_id": "algo_chunk_4",
+          "page_number": 2,
+          "content": "Hash tables provide expected O(1) constant time insertion, deletion, and lookup operations using hash functions and collision resolution strategies like separate chaining or open addressing."
+        }
+      ]
+    }
+  ],
+  "queries": [
+    {
+      "id": "q01",
+      "query": "What is the difference between supervised and unsupervised learning?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_ml",
+      "expected_chunk_id": "ml_chunk_1"
+    },
+    {
+      "id": "q02",
+      "query": "How do L1 and L2 regularization prevent model overfitting?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_ml",
+      "expected_chunk_id": "ml_chunk_2"
+    },
+    {
+      "id": "q03",
+      "query": "Why use k-fold cross-validation when tuning model hyperparameters?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_ml",
+      "expected_chunk_id": "ml_chunk_3"
+    },
+    {
+      "id": "q04",
+      "query": "How does gradient descent update parameters during neural network training?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_ml",
+      "expected_chunk_id": "ml_chunk_4"
+    },
+    {
+      "id": "q05",
+      "query": "What anomalies does database schema normalization eliminate?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_dbms",
+      "expected_chunk_id": "dbms_chunk_1"
+    },
+    {
+      "id": "q06",
+      "query": "What are the requirements for second normal form 2NF in relational tables?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_dbms",
+      "expected_chunk_id": "dbms_chunk_2"
+    },
+    {
+      "id": "q07",
+      "query": "How is Boyce-Codd normal form BCNF stricter than third normal form 3NF?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_dbms",
+      "expected_chunk_id": "dbms_chunk_3"
+    },
+    {
+      "id": "q08",
+      "query": "How does write-ahead logging WAL provide transaction durability?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_dbms",
+      "expected_chunk_id": "dbms_chunk_4"
+    },
+    {
+      "id": "q09",
+      "query": "How does the MMU translation lookaside buffer TLB support virtual memory?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_os",
+      "expected_chunk_id": "os_chunk_1"
+    },
+    {
+      "id": "q10",
+      "query": "What is the difference between Round Robin and Shortest Job First scheduling?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_os",
+      "expected_chunk_id": "os_chunk_2"
+    },
+    {
+      "id": "q11",
+      "query": "What are the four Coffman conditions necessary for deadlock to occur?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_os",
+      "expected_chunk_id": "os_chunk_3"
+    },
+    {
+      "id": "q12",
+      "query": "Which inter-process communication mechanisms exist in POSIX systems?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_os",
+      "expected_chunk_id": "os_chunk_4"
+    },
+    {
+      "id": "q13",
+      "query": "How do SYN and ACK packets work in the TCP three-way handshake?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_net",
+      "expected_chunk_id": "net_chunk_1"
+    },
+    {
+      "id": "q14",
+      "query": "How does DNS resolve domain names into numerical IP addresses?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_net",
+      "expected_chunk_id": "net_chunk_2"
+    },
+    {
+      "id": "q15",
+      "query": "What is CIDR and why are variable-length subnet masks used?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_net",
+      "expected_chunk_id": "net_chunk_3"
+    },
+    {
+      "id": "q16",
+      "query": "How does HTTP/2 multiplexing improve on HTTP/1.1 head-of-line blocking?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_net",
+      "expected_chunk_id": "net_chunk_4"
+    },
+    {
+      "id": "q17",
+      "query": "What is the runtime complexity of binary search in a sorted array?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_algo",
+      "expected_chunk_id": "algo_chunk_1"
+    },
+    {
+      "id": "q18",
+      "query": "How does Dijkstra algorithm find single-source shortest paths in graphs?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_algo",
+      "expected_chunk_id": "algo_chunk_2"
+    },
+    {
+      "id": "q19",
+      "query": "What problems can be solved with dynamic programming and memoization?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_algo",
+      "expected_chunk_id": "algo_chunk_3"
+    },
+    {
+      "id": "q20",
+      "query": "How do hash tables resolve key collisions with separate chaining?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_algo",
+      "expected_chunk_id": "algo_chunk_4"
+    },
+    {
+      "id": "q21",
+      "query": "What role does learning rate play in Adam and RMSprop optimizers?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_ml",
+      "expected_chunk_id": "ml_chunk_4"
+    },
+    {
+      "id": "q22",
+      "query": "What is atomic domain value requirement in first normal form?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_dbms",
+      "expected_chunk_id": "dbms_chunk_2"
+    },
+    {
+      "id": "q23",
+      "query": "How does circular wait condition contribute to system deadlocks?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_os",
+      "expected_chunk_id": "os_chunk_3"
+    },
+    {
+      "id": "q24",
+      "query": "What header compression scheme is used in HTTP/2?",
+      "is_answerable": true,
+      "expected_doc_id": "doc_net",
+      "expected_chunk_id": "net_chunk_4"
+    },
+    {
+      "id": "q25",
+      "query": "What is the capital city of Australia and its total population?",
+      "is_answerable": false,
+      "expected_doc_id": null,
+      "expected_chunk_id": null
+    },
+    {
+      "id": "q26",
+      "query": "How does cellular respiration produce ATP molecules in human mitochondria?",
+      "is_answerable": false,
+      "expected_doc_id": null,
+      "expected_chunk_id": null
+    },
+    {
+      "id": "q27",
+      "query": "What was the closing stock price of Microsoft on January 15 2024?",
+      "is_answerable": false,
+      "expected_doc_id": null,
+      "expected_chunk_id": null
+    },
+    {
+      "id": "q28",
+      "query": "What are the rules of indoor volleyball player rotations and libero substitutions?",
+      "is_answerable": false,
+      "expected_doc_id": null,
+      "expected_chunk_id": null
+    },
+    {
+      "id": "q29",
+      "query": "How do jet engines generate thrust using the Brayton thermodynamic cycle?",
+      "is_answerable": false,
+      "expected_doc_id": null,
+      "expected_chunk_id": null
+    },
+    {
+      "id": "q30",
+      "query": "What are the required ingredients for authentic Neapolitan pizza dough?",
+      "is_answerable": false,
+      "expected_doc_id": null,
+      "expected_chunk_id": null
+    },
+    {
+      "id": "q31",
+      "query": "Who won the FIFA Men World Cup in Russia in 2018?",
+      "is_answerable": false,
+      "expected_doc_id": null,
+      "expected_chunk_id": null
+    },
+    {
+      "id": "q32",
+      "query": "What is the biochemical reaction mechanism of chlorophyll photosynthesis in green plants?",
+      "is_answerable": false,
+      "expected_doc_id": null,
+      "expected_chunk_id": null
+    }
+  ]
+}

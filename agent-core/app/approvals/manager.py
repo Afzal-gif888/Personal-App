@@ -25,6 +25,7 @@ def utcnow() -> datetime:
 
 class ApprovalStatus(StrEnum):
     PENDING = "pending"
+    EXECUTING = "executing"
     APPROVED = "approved"
     REJECTED = "rejected"
     EXPIRED = "expired"
@@ -128,7 +129,9 @@ class ApprovalManager:
             tool = self.registry.get(approval.tool_name)
             if tool is None:
                 raise ApprovalStateError("This action is no longer available")
+            approval.status = ApprovalStatus.EXECUTING
             approval.decided_at = utcnow()
+            await self.store.save(approval)
             try:
                 approval.result = await self.registry.execute(tool, tool.parse(approval.payload), ctx)
                 approval.status = ApprovalStatus.APPROVED

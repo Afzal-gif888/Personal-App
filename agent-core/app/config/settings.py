@@ -15,13 +15,18 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     agent_core_port: int = 8001
 
+    # Aliases for environment variables
+    environment: str = ""
+    internal_service_token: SecretStr = SecretStr("")
+
     # Service-to-service auth: the backend sends `Authorization: Bearer <token>` on every call.
     # Required in production; in development an empty token disables the check.
     agent_core_service_token: SecretStr = SecretStr("")
 
     # LLM: "openrouter" = OpenRouter (free ':free' models available); "gemini" = Google Gemini (AI Studio key);
-    # "anthropic" = Claude (paid API). There is no mock: without LLM_API_KEY the assistant says it isn't set up.
-    llm_provider: Literal["openrouter", "gemini", "anthropic"] = "gemini"
+    # "anthropic" = Claude (paid API); "freellmapi" = FreeLLMAPI (unified local/remote OpenAI-compatible proxy).
+    # There is no mock: without LLM_API_KEY the assistant says it isn't set up.
+    llm_provider: Literal["openrouter", "gemini", "anthropic", "freellmapi"] = "gemini"
     llm_api_key: SecretStr = SecretStr("")
     llm_model: str = ""
     llm_base_url: str = ""
@@ -36,6 +41,11 @@ class Settings(BaseSettings):
     # Request budget for model calls (0 = unlimited). Keep below the provider's free-tier limits.
     llm_max_requests_per_minute: int = Field(default=0, ge=0)
     llm_max_requests_per_day: int = Field(default=0, ge=0)
+
+    # FreeLLMAPI-specific settings
+    freellmapi_base_url: str = "http://127.0.0.1:31415/v1"
+    freellmapi_api_key: SecretStr = SecretStr("")
+    freellmapi_model: str = "auto"
 
     # The FastAPI backend (base URL without /api/v1).
     backend_api_url: str = "http://localhost:8000"
@@ -62,13 +72,27 @@ class Settings(BaseSettings):
         return value.rstrip("/")
 
     @model_validator(mode="after")
-    def _production_guards(self) -> "Settings":
+    def _resolve_aliases_and_guards(self) -> "Settings":
+        if self.internal_service_token.get_secret_value() and not self.agent_core_service_token.get_secret_value():
+            self.agent_core_service_token = self.internal_service_token
+        if self.environment and self.environment in ("development", "test", "production"):
+            self.app_env = self.environment  # type: ignore
+        if self.llm_provider == "freellmapi":
+            if not self.llm_api_key.get_secret_value() and self.freellmapi_api_key.get_secret_value():
+                self.llm_api_key = self.freellmapi_api_key
+            if not self.llm_base_url and self.freellmapi_base_url:
+                self.llm_base_url = self.freellmapi_base_url
+            if not self.llm_model and self.freellmapi_model:
+                self.llm_model = self.freellmapi_model
+
         if self.app_env == "production" and not self.agent_core_service_token.get_secret_value():
             raise ValueError("AGENT_CORE_SERVICE_TOKEN is required in production")
         return self
 
     @property
     def llm_is_real(self) -> bool:
+        if self.llm_provider == "freellmapi":
+            return bool(self.freellmapi_api_key.get_secret_value() or self.llm_api_key.get_secret_value())
         return bool(self.llm_api_key.get_secret_value())
 
 

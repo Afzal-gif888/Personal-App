@@ -95,6 +95,12 @@ def run_remote_agent(
         "user_id": str(user.id),
         "history": history,
     }
+    # Stop holding a DB session/connection during the long (up to 120s) Agent Core call.
+    # Commit initial state (run created with RUNNING status, user message, etc.) and release/close
+    # the session so the connection is returned to the pool while the agent reasons and acts.
+    db.commit()
+    db.close()
+
     data: dict[str, Any] | None = None
     try:
         resp = _post("/agent/run", body, user_token)
@@ -108,6 +114,9 @@ def run_remote_agent(
         _fail(run, outcome, "Couldn't reach the assistant service. Please try again.")
     except ValueError:
         _fail(run, outcome, "The assistant service sent an invalid response.")
+
+    # Reopen / re-attach for persistence
+    db.add(run)
     if data is not None:
         _record(db, user, run, data, outcome)
 

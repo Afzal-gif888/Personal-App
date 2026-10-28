@@ -125,9 +125,11 @@ def send_message(
     db.add(assistant_message)
     db.flush()
     user_message.agent_run_id = outcome.run.id
+    db.add(user_message)
     for approval in outcome.approvals:
         approval.message_id = assistant_message.id
     conversation.updated_at = utcnow()
+    db.add(conversation)
     db.commit()
     return user_message, assistant_message, outcome.run, conversation
 

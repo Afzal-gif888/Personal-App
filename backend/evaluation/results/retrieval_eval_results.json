@@ -1,0 +1,729 @@
+{
+  "metadata": {
+    "provider": "calibrated",
+    "dataset": "dataset.json",
+    "similarity_floor": 0.65
+  },
+  "summary_metrics": {
+    "dataset_queries_total": 32,
+    "answerable_queries": 24,
+    "unanswerable_queries": 8,
+    "corpus_documents": 5,
+    "corpus_chunks": 20,
+    "hit_at_1": 1.0,
+    "hit_at_3": 1.0,
+    "hit_at_5": 1.0,
+    "mrr": 1.0,
+    "unanswerable_rejection_at_floor": 1.0,
+    "similarity_floor_configured": 0.65
+  },
+  "threshold_sweep": [
+    {
+      "threshold": 0.5,
+      "answerable_recall": 1.0,
+      "answerable_recalled_count": 24,
+      "unanswerable_rejection": 0.125,
+      "unanswerable_rejected_count": 1
+    },
+    {
+      "threshold": 0.55,
+      "answerable_recall": 1.0,
+      "answerable_recalled_count": 24,
+      "unanswerable_rejection": 0.625,
+      "unanswerable_rejected_count": 5
+    },
+    {
+      "threshold": 0.6,
+      "answerable_recall": 1.0,
+      "answerable_recalled_count": 24,
+      "unanswerable_rejection": 1.0,
+      "unanswerable_rejected_count": 8
+    },
+    {
+      "threshold": 0.65,
+      "answerable_recall": 1.0,
+      "answerable_recalled_count": 24,
+      "unanswerable_rejection": 1.0,
+      "unanswerable_rejected_count": 8
+    },
+    {
+      "threshold": 0.7,
+      "answerable_recall": 1.0,
+      "answerable_recalled_count": 24,
+      "unanswerable_rejection": 1.0,
+      "unanswerable_rejected_count": 8
+    },
+    {
+      "threshold": 0.75,
+      "answerable_recall": 0.9583,
+      "answerable_recalled_count": 23,
+      "unanswerable_rejection": 1.0,
+      "unanswerable_rejected_count": 8
+    },
+    {
+      "threshold": 0.8,
+      "answerable_recall": 0.8333,
+      "answerable_recalled_count": 20,
+      "unanswerable_rejection": 1.0,
+      "unanswerable_rejected_count": 8
+    }
+  ],
+  "queries": [
+    {
+      "id": "q01",
+      "query": "What is the difference between supervised and unsupervised learning?",
+      "is_answerable": true,
+      "expected_chunk_id": "ml_chunk_1",
+      "rank": 1,
+      "expected_score": 0.9,
+      "top_retrieved": [
+        {
+          "chunk_id": "ml_chunk_1",
+          "doc_id": "doc_ml",
+          "similarity": 0.9
+        },
+        {
+          "chunk_id": "ml_chunk_4",
+          "doc_id": "doc_ml",
+          "similarity": 0.6097
+        },
+        {
+          "chunk_id": "ml_chunk_2",
+          "doc_id": "doc_ml",
+          "similarity": 0.5572
+        }
+      ]
+    },
+    {
+      "id": "q02",
+      "query": "How do L1 and L2 regularization prevent model overfitting?",
+      "is_answerable": true,
+      "expected_chunk_id": "ml_chunk_2",
+      "rank": 1,
+      "expected_score": 0.9,
+      "top_retrieved": [
+        {
+          "chunk_id": "ml_chunk_2",
+          "doc_id": "doc_ml",
+          "similarity": 0.9
+        },
+        {
+          "chunk_id": "ml_chunk_3",
+          "doc_id": "doc_ml",
+          "similarity": 0.6766
+        },
+        {
+          "chunk_id": "ml_chunk_4",
+          "doc_id": "doc_ml",
+          "similarity": 0.6006
+        }
+      ]
+    },
+    {
+      "id": "q03",
+      "query": "Why use k-fold cross-validation when tuning model hyperparameters?",
+      "is_answerable": true,
+      "expected_chunk_id": "ml_chunk_3",
+      "rank": 1,
+      "expected_score": 0.9,
+      "top_retrieved": [
+        {
+          "chunk_id": "ml_chunk_3",
+          "doc_id": "doc_ml",
+          "similarity": 0.9
+        },
+        {
+          "chunk_id": "ml_chunk_4",
+          "doc_id": "doc_ml",
+          "similarity": 0.7516
+        },
+        {
+          "chunk_id": "ml_chunk_1",
+          "doc_id": "doc_ml",
+          "similarity": 0.5811
+        }
+      ]
+    },
+    {
+      "id": "q04",
+      "query": "How does gradient descent update parameters during neural network training?",
+      "is_answerable": true,
+      "expected_chunk_id": "ml_chunk_4",
+      "rank": 1,
+      "expected_score": 0.7543,
+      "top_retrieved": [
+        {
+          "chunk_id": "ml_chunk_4",
+          "doc_id": "doc_ml",
+          "similarity": 0.7543
+        },
+        {
+          "chunk_id": "ml_chunk_3",
+          "doc_id": "doc_ml",
+          "similarity": 0.6187
+        },
+        {
+          "chunk_id": "ml_chunk_1",
+          "doc_id": "doc_ml",
+          "similarity": 0.5852
+        }
+      ]
+    },
+    {
+      "id": "q05",
+      "query": "What anomalies does database schema normalization eliminate?",
+      "is_answerable": true,
+      "expected_chunk_id": "dbms_chunk_1",
+      "rank": 1,
+      "expected_score": 0.9,
+      "top_retrieved": [
+        {
+          "chunk_id": "dbms_chunk_1",
+          "doc_id": "doc_dbms",
+          "similarity": 0.9
+        },
+        {
+          "chunk_id": "dbms_chunk_2",
+          "doc_id": "doc_dbms",
+          "similarity": 0.6728
+        },
+        {
+          "chunk_id": "ml_chunk_3",
+          "doc_id": "doc_ml",
+          "similarity": 0.6267
+        }
+      ]
+    },
+    {
+      "id": "q06",
+      "query": "What are the requirements for second normal form 2NF in relational tables?",
+      "is_answerable": true,
+      "expected_chunk_id": "dbms_chunk_2",
+      "rank": 1,
+      "expected_score": 0.7328,
+      "top_retrieved": [
+        {
+          "chunk_id": "dbms_chunk_2",
+          "doc_id": "doc_dbms",
+          "similarity": 0.7328
+        },
+        {
+          "chunk_id": "dbms_chunk_3",
+          "doc_id": "doc_dbms",
+          "similarity": 0.6994
+        },
+        {
+          "chunk_id": "dbms_chunk_1",
+          "doc_id": "doc_dbms",
+          "similarity": 0.6791
+        }
+      ]
+    },
+    {
+      "id": "q07",
+      "query": "How is Boyce-Codd normal form BCNF stricter than third normal form 3NF?",
+      "is_answerable": true,
+      "expected_chunk_id": "dbms_chunk_3",
+      "rank": 1,
+      "expected_score": 0.9,
+      "top_retrieved": [
+        {
+          "chunk_id": "dbms_chunk_3",
+          "doc_id": "doc_dbms",
+          "similarity": 0.9
+        },
+        {
+          "chunk_id": "dbms_chunk_2",
+          "doc_id": "doc_dbms",
+          "similarity": 0.7732
+        },
+        {
+          "chunk_id": "dbms_chunk_1",
+          "doc_id": "doc_dbms",
+          "similarity": 0.573
+        }
+      ]
+    },
+    {
+      "id": "q08",
+      "query": "How does write-ahead logging WAL provide transaction durability?",
+      "is_answerable": true,
+      "expected_chunk_id": "dbms_chunk_4",
+      "rank": 1,
+      "expected_score": 0.9,
+      "top_retrieved": [
+        {
+          "chunk_id": "dbms_chunk_4",
+          "doc_id": "doc_dbms",
+          "similarity": 0.9
+        },
+        {
+          "chunk_id": "algo_chunk_4",
+          "doc_id": "doc_algo",
+          "similarity": 0.5729
+        },
+        {
+          "chunk_id": "os_chunk_2",
+          "doc_id": "doc_os",
+          "similarity": 0.5405
+        }
+      ]
+    },
+    {
+      "id": "q09",
+      "query": "How does the MMU translation lookaside buffer TLB support virtual memory?",
+      "is_answerable": true,
+      "expected_chunk_id": "os_chunk_1",
+      "rank": 1,
+      "expected_score": 0.858,
+      "top_retrieved": [
+        {
+          "chunk_id": "os_chunk_1",
+          "doc_id": "doc_os",
+          "similarity": 0.858
+        },
+        {
+          "chunk_id": "os_chunk_4",
+          "doc_id": "doc_os",
+          "similarity": 0.5351
+        },
+        {
+          "chunk_id": "net_chunk_1",
+          "doc_id": "doc_net",
+          "similarity": 0.527
+        }
+      ]
+    },
+    {
+      "id": "q10",
+      "query": "What is the difference between Round Robin and Shortest Job First scheduling?",
+      "is_answerable": true,
+      "expected_chunk_id": "os_chunk_2",
+      "rank": 1,
+      "expected_score": 0.7948,
+      "top_retrieved": [
+        {
+          "chunk_id": "os_chunk_2",
+          "doc_id": "doc_os",
+          "similarity": 0.7948
+        },
+        {
+          "chunk_id": "algo_chunk_2",
+          "doc_id": "doc_algo",
+          "similarity": 0.545
+        },
+        {
+          "chunk_id": "dbms_chunk_4",
+          "doc_id": "doc_dbms",
+          "similarity": 0.5408
+        }
+      ]
+    },
+    {
+      "id": "q11",
+      "query": "What are the four Coffman conditions necessary for deadlock to occur?",
+      "is_answerable": true,
+      "expected_chunk_id": "os_chunk_3",
+      "rank": 1,
+      "expected_score": 0.8464,
+      "top_retrieved": [
+        {
+          "chunk_id": "os_chunk_3",
+          "doc_id": "doc_os",
+          "similarity": 0.8464
+        },
+        {
+          "chunk_id": "net_chunk_4",
+          "doc_id": "doc_net",
+          "similarity": 0.5786
+        },
+        {
+          "chunk_id": "dbms_chunk_4",
+          "doc_id": "doc_dbms",
+          "similarity": 0.5377
+        }
+      ]
+    },
+    {
+      "id": "q12",
+      "query": "Which inter-process communication mechanisms exist in POSIX systems?",
+      "is_answerable": true,
+      "expected_chunk_id": "os_chunk_4",
+      "rank": 1,
+      "expected_score": 0.8937,
+      "top_retrieved": [
+        {
+          "chunk_id": "os_chunk_4",
+          "doc_id": "doc_os",
+          "similarity": 0.8937
+        },
+        {
+          "chunk_id": "os_chunk_2",
+          "doc_id": "doc_os",
+          "similarity": 0.5394
+        },
+        {
+          "chunk_id": "dbms_chunk_1",
+          "doc_id": "doc_dbms",
+          "similarity": 0.5391
+        }
+      ]
+    },
+    {
+      "id": "q13",
+      "query": "How do SYN and ACK packets work in the TCP three-way handshake?",
+      "is_answerable": true,
+      "expected_chunk_id": "net_chunk_1",
+      "rank": 1,
+      "expected_score": 0.8549,
+      "top_retrieved": [
+        {
+          "chunk_id": "net_chunk_1",
+          "doc_id": "doc_net",
+          "similarity": 0.8549
+        },
+        {
+          "chunk_id": "os_chunk_4",
+          "doc_id": "doc_os",
+          "similarity": 0.5405
+        },
+        {
+          "chunk_id": "dbms_chunk_4",
+          "doc_id": "doc_dbms",
+          "similarity": 0.5263
+        }
+      ]
+    },
+    {
+      "id": "q14",
+      "query": "How does DNS resolve domain names into numerical IP addresses?",
+      "is_answerable": true,
+      "expected_chunk_id": "net_chunk_2",
+      "rank": 1,
+      "expected_score": 0.9,
+      "top_retrieved": [
+        {
+          "chunk_id": "net_chunk_2",
+          "doc_id": "doc_net",
+          "similarity": 0.9
+        },
+        {
+          "chunk_id": "net_chunk_3",
+          "doc_id": "doc_net",
+          "similarity": 0.6275
+        },
+        {
+          "chunk_id": "os_chunk_4",
+          "doc_id": "doc_os",
+          "similarity": 0.5829
+        }
+      ]
+    },
+    {
+      "id": "q15",
+      "query": "What is CIDR and why are variable-length subnet masks used?",
+      "is_answerable": true,
+      "expected_chunk_id": "net_chunk_3",
+      "rank": 1,
+      "expected_score": 0.8987,
+      "top_retrieved": [
+        {
+          "chunk_id": "net_chunk_3",
+          "doc_id": "doc_net",
+          "similarity": 0.8987
+        },
+        {
+          "chunk_id": "ml_chunk_2",
+          "doc_id": "doc_ml",
+          "similarity": 0.5335
+        },
+        {
+          "chunk_id": "dbms_chunk_4",
+          "doc_id": "doc_dbms",
+          "similarity": 0.5295
+        }
+      ]
+    },
+    {
+      "id": "q16",
+      "query": "How does HTTP/2 multiplexing improve on HTTP/1.1 head-of-line blocking?",
+      "is_answerable": true,
+      "expected_chunk_id": "net_chunk_4",
+      "rank": 1,
+      "expected_score": 0.8854,
+      "top_retrieved": [
+        {
+          "chunk_id": "net_chunk_4",
+          "doc_id": "doc_net",
+          "similarity": 0.8854
+        },
+        {
+          "chunk_id": "algo_chunk_3",
+          "doc_id": "doc_algo",
+          "similarity": 0.5634
+        },
+        {
+          "chunk_id": "dbms_chunk_4",
+          "doc_id": "doc_dbms",
+          "similarity": 0.5479
+        }
+      ]
+    },
+    {
+      "id": "q17",
+      "query": "What is the runtime complexity of binary search in a sorted array?",
+      "is_answerable": true,
+      "expected_chunk_id": "algo_chunk_1",
+      "rank": 1,
+      "expected_score": 0.8874,
+      "top_retrieved": [
+        {
+          "chunk_id": "algo_chunk_1",
+          "doc_id": "doc_algo",
+          "similarity": 0.8874
+        },
+        {
+          "chunk_id": "algo_chunk_2",
+          "doc_id": "doc_algo",
+          "similarity": 0.6245
+        },
+        {
+          "chunk_id": "net_chunk_4",
+          "doc_id": "doc_net",
+          "similarity": 0.5602
+        }
+      ]
+    },
+    {
+      "id": "q18",
+      "query": "How does Dijkstra algorithm find single-source shortest paths in graphs?",
+      "is_answerable": true,
+      "expected_chunk_id": "algo_chunk_2",
+      "rank": 1,
+      "expected_score": 0.8878,
+      "top_retrieved": [
+        {
+          "chunk_id": "algo_chunk_2",
+          "doc_id": "doc_algo",
+          "similarity": 0.8878
+        },
+        {
+          "chunk_id": "os_chunk_2",
+          "doc_id": "doc_os",
+          "similarity": 0.5949
+        },
+        {
+          "chunk_id": "algo_chunk_1",
+          "doc_id": "doc_algo",
+          "similarity": 0.5299
+        }
+      ]
+    },
+    {
+      "id": "q19",
+      "query": "What problems can be solved with dynamic programming and memoization?",
+      "is_answerable": true,
+      "expected_chunk_id": "algo_chunk_3",
+      "rank": 1,
+      "expected_score": 0.8976,
+      "top_retrieved": [
+        {
+          "chunk_id": "algo_chunk_3",
+          "doc_id": "doc_algo",
+          "similarity": 0.8976
+        },
+        {
+          "chunk_id": "ml_chunk_4",
+          "doc_id": "doc_ml",
+          "similarity": 0.6281
+        },
+        {
+          "chunk_id": "os_chunk_1",
+          "doc_id": "doc_os",
+          "similarity": 0.609
+        }
+      ]
+    },
+    {
+      "id": "q20",
+      "query": "How do hash tables resolve key collisions with separate chaining?",
+      "is_answerable": true,
+      "expected_chunk_id": "algo_chunk_4",
+      "rank": 1,
+      "expected_score": 0.9,
+      "top_retrieved": [
+        {
+          "chunk_id": "algo_chunk_4",
+          "doc_id": "doc_algo",
+          "similarity": 0.9
+        },
+        {
+          "chunk_id": "net_chunk_2",
+          "doc_id": "doc_net",
+          "similarity": 0.5882
+        },
+        {
+          "chunk_id": "net_chunk_3",
+          "doc_id": "doc_net",
+          "similarity": 0.5828
+        }
+      ]
+    },
+    {
+      "id": "q21",
+      "query": "What role does learning rate play in Adam and RMSprop optimizers?",
+      "is_answerable": true,
+      "expected_chunk_id": "ml_chunk_4",
+      "rank": 1,
+      "expected_score": 0.8246,
+      "top_retrieved": [
+        {
+          "chunk_id": "ml_chunk_4",
+          "doc_id": "doc_ml",
+          "similarity": 0.8246
+        },
+        {
+          "chunk_id": "ml_chunk_1",
+          "doc_id": "doc_ml",
+          "similarity": 0.6638
+        },
+        {
+          "chunk_id": "os_chunk_2",
+          "doc_id": "doc_os",
+          "similarity": 0.5456
+        }
+      ]
+    },
+    {
+      "id": "q22",
+      "query": "What is atomic domain value requirement in first normal form?",
+      "is_answerable": true,
+      "expected_chunk_id": "dbms_chunk_2",
+      "rank": 1,
+      "expected_score": 0.8304,
+      "top_retrieved": [
+        {
+          "chunk_id": "dbms_chunk_2",
+          "doc_id": "doc_dbms",
+          "similarity": 0.8304
+        },
+        {
+          "chunk_id": "dbms_chunk_3",
+          "doc_id": "doc_dbms",
+          "similarity": 0.7053
+        },
+        {
+          "chunk_id": "dbms_chunk_1",
+          "doc_id": "doc_dbms",
+          "similarity": 0.5539
+        }
+      ]
+    },
+    {
+      "id": "q23",
+      "query": "How does circular wait condition contribute to system deadlocks?",
+      "is_answerable": true,
+      "expected_chunk_id": "os_chunk_3",
+      "rank": 1,
+      "expected_score": 0.7724,
+      "top_retrieved": [
+        {
+          "chunk_id": "os_chunk_3",
+          "doc_id": "doc_os",
+          "similarity": 0.7724
+        },
+        {
+          "chunk_id": "dbms_chunk_2",
+          "doc_id": "doc_dbms",
+          "similarity": 0.5845
+        },
+        {
+          "chunk_id": "dbms_chunk_4",
+          "doc_id": "doc_dbms",
+          "similarity": 0.5647
+        }
+      ]
+    },
+    {
+      "id": "q24",
+      "query": "What header compression scheme is used in HTTP/2?",
+      "is_answerable": true,
+      "expected_chunk_id": "net_chunk_4",
+      "rank": 1,
+      "expected_score": 0.8274,
+      "top_retrieved": [
+        {
+          "chunk_id": "net_chunk_4",
+          "doc_id": "doc_net",
+          "similarity": 0.8274
+        },
+        {
+          "chunk_id": "dbms_chunk_1",
+          "doc_id": "doc_dbms",
+          "similarity": 0.5606
+        },
+        {
+          "chunk_id": "os_chunk_2",
+          "doc_id": "doc_os",
+          "similarity": 0.5501
+        }
+      ]
+    },
+    {
+      "id": "q25",
+      "query": "What is the capital city of Australia and its total population?",
+      "is_answerable": false,
+      "top_similarity": 0.5524,
+      "rejected_at_floor": true
+    },
+    {
+      "id": "q26",
+      "query": "How does cellular respiration produce ATP molecules in human mitochondria?",
+      "is_answerable": false,
+      "top_similarity": 0.527,
+      "rejected_at_floor": true
+    },
+    {
+      "id": "q27",
+      "query": "What was the closing stock price of Microsoft on January 15 2024?",
+      "is_answerable": false,
+      "top_similarity": 0.513,
+      "rejected_at_floor": true
+    },
+    {
+      "id": "q28",
+      "query": "What are the rules of indoor volleyball player rotations and libero substitutions?",
+      "is_answerable": false,
+      "top_similarity": 0.553,
+      "rejected_at_floor": true
+    },
+    {
+      "id": "q29",
+      "query": "How do jet engines generate thrust using the Brayton thermodynamic cycle?",
+      "is_answerable": false,
+      "top_similarity": 0.5549,
+      "rejected_at_floor": true
+    },
+    {
+      "id": "q30",
+      "query": "What are the required ingredients for authentic Neapolitan pizza dough?",
+      "is_answerable": false,
+      "top_similarity": 0.5368,
+      "rejected_at_floor": true
+    },
+    {
+      "id": "q31",
+      "query": "Who won the FIFA Men World Cup in Russia in 2018?",
+      "is_answerable": false,
+      "top_similarity": 0.48,
+      "rejected_at_floor": true
+    },
+    {
+      "id": "q32",
+      "query": "What is the biochemical reaction mechanism of chlorophyll photosynthesis in green plants?",
+      "is_answerable": false,
+      "top_similarity": 0.5303,
+      "rejected_at_floor": true
+    }
+  ]
+}

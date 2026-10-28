@@ -217,13 +217,27 @@ async def plan(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
 # --- agent ---------------------------------------------------------------------------------------
 
 
+def _messages_with_context(state: AgentState) -> list[dict[str, Any]]:
+    msgs = [dict(m) for m in state.messages]
+    if state.retrieved_documents:
+        ctx_block = prompts.format_context_block(state.retrieved_documents)
+        for i in range(len(msgs) - 1, -1, -1):
+            if msgs[i].get("role") == "user":
+                content = msgs[i].get("content")
+                if isinstance(content, str) and "<context>" not in content:
+                    msgs[i] = {**msgs[i], "content": f"{content}\n\n{ctx_block}".strip()}
+                    break
+    return msgs
+
+
 async def agent(state: AgentState, config: RunnableConfig) -> dict[str, Any]:
     d = deps(config)
     if state.iterations >= d.settings.max_agent_iterations:
         return {"stop_reason": "iteration_limit", "pending_tool_calls": []}
     specs = d.registry.specs(router.offered_domains(state.intent))
     try:
-        result = await d.llm.invoke(system=prompts.build_system_prompt(state), messages=state.messages, tools=specs)
+        messages = _messages_with_context(state)
+        result = await d.llm.invoke(system=prompts.build_system_prompt(state), messages=messages, tools=specs)
     except LLMError as exc:
         code = ErrorCode.RATE_LIMITED if exc.rate_limited else ErrorCode.LLM_ERROR
         return {"error": AgentError(code=code, message=exc.message, retryable=exc.retryable), "pending_tool_calls": []}

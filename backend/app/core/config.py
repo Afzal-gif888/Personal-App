@@ -71,6 +71,7 @@ class Settings(BaseSettings):
     rate_limit_enabled: bool = True
     rate_limit_auth_per_minute: int = 20
     rate_limit_chat_per_minute: int = 30
+    redis_url: str = ""
 
     scheduler_enabled: bool = False
     scheduler_interval_seconds: int = 60

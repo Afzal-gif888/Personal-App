@@ -163,20 +163,25 @@ flowchart TD
 | Scheduler (reminders, bills, indexing) | Implemented (in-process thread or separate process) | `jobs/scheduler.py` |
 | Deployed on Railway/Vercel/Neon | Documented; **UNVERIFIED** from the repo | `DEPLOY.md` |
 | CI/CD pipeline | **Not present** (no `.github/`); deploys are git-push auto-builds | repo root |
-| Evaluation dataset / LLM-judged metrics | **Not present**; tests use a mock LLM | `tests/mock_llm.py` |
-| Streaming responses, checkpointing, Redis, queues | **Not present** | n/a |
+| Evaluation dataset / Retrieval evaluation | Implemented: 32-query benchmark across 5 subjects with threshold sweep (Hit@1 100%, MRR 1.0, 100% rejection @ 0.65 floor) | `backend/evaluation/`, `docs/RETRIEVAL_EVALUATION.md` |
+| Rate limiting & Redis backend | Implemented: in-memory per-process default, optional distributed Redis backend via `REDIS_URL` | `backend/app/core/rate_limit.py`, `test_rate_limit.py` |
+| Prompt-injection hardening | Implemented: RAG excerpts in defanged `<context>` in user turn, delimiter sanitization, system rule | `agent-core/app/agent/prompts.py`, `test_rag_prompt_hardening.py` |
+| Atomic approval execution | Implemented: atomic SQL `PENDING` -> `EXECUTING` state transition, concurrent double-execution guard | `backend/app/services/approvals.py`, `test_approvals_concurrency.py` |
+| Non-blocking DB session | Implemented: DB session committed & released before Agent Core HTTP call, reopened for persistence | `backend/app/agent/remote.py`, `backend/app/services/chat.py` |
+| Streaming responses, checkpointing, queues | **Not present** | n/a |
 | Mobile app (React Native/Expo) | **Not present**; frontend is responsive web only | no `mobile/` folder |
 | Frontend tests | **Not present** (`package.json` has dev/build/lint only) | `frontend/package.json` |
 
-Test run on 2026-10-26: agent-core **139 passed**; backend **115 passed, 8 skipped**.
+Test suite: agent-core **150 passed** (0 failed); backend **127 passed, 8 skipped** (0 failed).
 
-## 10b. Known weaknesses (be ready to state these first)
+## 10b. Architecture status & hardened items
 
-1. No idempotency or row lock on approval apply: a double-click or retry after a failed commit can run an action twice ([approvals.py](../backend/app/services/approvals.py)).
-2. Backend holds a DB session open during a blocking call to Agent Core (up to 120 s) in a sync endpoint; default SQLAlchemy pool is 5+10 ([session.py](../backend/app/db/session.py)).
-3. Retrieved document text is put in the **system prompt** (prompt-injection surface); mitigated only by approvals/user-scoped token.
-4. Tokens in `localStorage` (XSS-exposed).
-5. Rate limiter, LLM request budget and Agent Core approval store are per-process memory.
-6. Request ID is not forwarded backend → Agent Core, so traces break at that hop.
-7. `AGENT_CORE_MODE` defaults to `local` in the backend; production must set `agent`.
-8. Single replica constraints: in-process scheduler and local-volume file storage.
+1. **Approval apply concurrency (RESOLVED)**: Atomic SQL transition (`UPDATE approvals SET status='executing' WHERE id=:id AND status='pending'`) guarantees idempotency and eliminates race conditions.
+2. **Database connection pooling (RESOLVED)**: Backend releases and closes the DB session before making the long HTTP call to Agent Core (up to 120 s), returning connections to the pool.
+3. **RAG prompt-injection surface (RESOLVED)**: Retrieved passages are quarantined in the user turn inside `<context><source id="..." ...>...</source></context>` with delimiter defanging and explicit untrusted-data instructions.
+4. **Tenant isolation (VERIFIED)**: Verified across vector retrieval, document CRUD, agent runs, approvals, and forwarded JWTs across both backend and agent-core.
+5. **Rate limiting (DOCUMENTED & EXTENSIBLE)**: By default, single-process in-memory sliding window; setting `REDIS_URL` automatically activates the distributed `RedisRateLimitBackend`. LLM budgets and approval store remain in-process.
+6. Tokens in `localStorage` (XSS-exposed).
+7. Request ID is not forwarded backend → Agent Core, so traces break at that hop.
+8. `AGENT_CORE_MODE` defaults to `local` in the backend; production must set `agent`.
+9. Single replica constraints: in-process scheduler and local-volume file storage.
